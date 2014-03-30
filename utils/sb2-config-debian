@@ -118,23 +118,44 @@ arm*)
 	else
 		echo $SBOX_GCC_TARGET | grep -q -i eabi
 		if [ $? == 0 ]; then
-			DEBIAN_CPU=armel
+			echo $SBOX_GCC_TARGET | grep -q -i eabihf
+			if [ $? == 0 ]; then
+				DEBIAN_CPU=armhf
+			else
+				DEBIAN_CPU=armel
+			fi
 		fi
 	fi
 	;;
 esac
 
 case "$ARCH" in
+armhf)
+	default_DEB_BUILD_ARCH=$DEBIAN_CPU
+	default_DEB_BUILD_ARCH_ABI="gnueabihf"
+	default_DEB_BUILD_ARCH_CPU="arm"
+	default_DEB_BUILD_GNU_TYPE="arm-linux-gnueabihf"
+	default_DEB_BUILD_GNU_SYSTEM="linux-gnueabihf"
+	default_DEB_BUILD_MULTIARCH="arm-linux-gnueabihf"
+
+	default_DEB_HOST_GNU_TYPE="arm-linux-gnueabihf"
+	default_DEB_HOST_GNU_SYSTEM="linux-gnueabihf"
+	default_DEB_HOST_MULTIARCH="arm-linux-gnueabihf"
+	default_DEB_HOST_ARCH_CPU="arm"
+	default_DEB_HOST_ARCH_OS="linux"
+	;;
 arm*)
 	default_DEB_BUILD_ARCH=$DEBIAN_CPU
 	default_DEB_BUILD_ARCH_ABI="gnueabi"
-	default_DEB_BUILD_ARCH_CPU=$ARCH
-	default_DEB_BUILD_GNU_TYPE=$ARCH-linux-gnueabi
+	default_DEB_BUILD_ARCH_CPU="arm"
+	default_DEB_BUILD_GNU_TYPE="arm-linux-gnueabi"
 	default_DEB_BUILD_GNU_SYSTEM="linux-gnueabi"
+	default_DEB_BUILD_MULTIARCH="arm-linux-gnueabi"
 
-	default_DEB_HOST_GNU_TYPE=$ARCH-linux-gnueabi
+	default_DEB_HOST_GNU_TYPE="arm-linux-gnueabi"
 	default_DEB_HOST_GNU_SYSTEM="linux-gnueabi"
-	default_DEB_HOST_ARCH_CPU=$ARCH
+	default_DEB_HOST_MULTIARCH="arm-linux-gnueabi"
+	default_DEB_HOST_ARCH_CPU="arm"
 	default_DEB_HOST_ARCH_OS="linux"
 	;;
 *)
@@ -170,6 +191,7 @@ if [ $? != 0 ]; then
 
 	if [ -n "$verbose" ] ; then
 		echo "dpkg-architecture doesn't exist: Using built-in values"
+		echo "dumbs, I think you may need chroot in and apt-get install dpkg-dev"
 	fi
 
 	CONFIG_METHOD="used built-in values, arch=$ARCH and debian_cpu=$DEBIAN_CPU"
@@ -183,6 +205,7 @@ DEB_BUILD_ARCH_CPU=$default_DEB_BUILD_ARCH_CPU
 DEB_BUILD_GNU_CPU=$ARCH
 DEB_BUILD_GNU_TYPE=$default_DEB_BUILD_GNU_TYPE
 DEB_BUILD_GNU_SYSTEM=$default_DEB_BUILD_GNU_SYSTEM
+DEB_BUILD_MULTIARCH=$default_DEB_BUILD_MULTIARCH
 
 DEB_HOST_ARCH=$DEBIAN_CPU
 DEB_HOST_ARCH_OS=$default_DEB_HOST_ARCH_OS
@@ -191,6 +214,7 @@ DEB_HOST_ARCH_CPU=$default_DEB_HOST_ARCH_CPU
 DEB_HOST_GNU_CPU=$ARCH
 DEB_HOST_GNU_TYPE=$default_DEB_HOST_GNU_TYPE
 DEB_HOST_GNU_SYSTEM=$default_DEB_HOST_GNU_SYSTEM
+DEB_HOST_MULTIARCH=$default_DEB_HOST_MULTIARCH
 
 export DEB_BUILD_ARCH
 export DEB_BUILD_ARCH_CPU
@@ -198,6 +222,7 @@ export DEB_BUILD_ARCH_ABI
 export DEB_BUILD_GNU_CPU
 export DEB_BUILD_GNU_TYPE
 export DEB_BUILD_GNU_SYSTEM
+export DEB_BUILD_MULTIARCH
 
 export DEB_HOST_ARCH
 export DEB_HOST_ARCH_OS
@@ -206,6 +231,7 @@ export DEB_HOST_ARCH_CPU
 export DEB_HOST_GNU_CPU
 export DEB_HOST_GNU_TYPE
 export DEB_HOST_GNU_SYSTEM
+export DEB_HOST_MULTIARCH
 EOF
 
 else
