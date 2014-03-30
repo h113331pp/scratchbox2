@@ -402,7 +402,7 @@ if [ -f $SBOX_DIR/share/scratchbox2/modeconf/sb2rc.$MAPPING_MODE ]; then
 	. $SBOX_DIR/share/scratchbox2/modeconf/sb2rc.$MAPPING_MODE "initializing"
 fi
 
-if [ ! $SB2INIT_SKIP_CHECKS ]; then
+if [ $SB2INIT_SKIP_CHECKS == "false" ]; then
 	check_buildroot_sanity
 fi
 
