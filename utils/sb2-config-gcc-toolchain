@@ -60,7 +60,7 @@ function write_gcc_config()
 
 	# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real 
 	# value when the session is created.
-	SBOX_EXTRA_CROSS_LD_ARGS="-rpath-link @SBOX_TARGET_ROOT@/usr/lib:@SBOX_TARGET_ROOT@/lib"
+	SBOX_EXTRA_CROSS_LD_ARGS="-rpath-link @SBOX_TARGET_ROOT@/usr/lib:@SBOX_TARGET_ROOT@/lib:@SBOX_TARGET_ROOT@/usr/lib/$GCC_TARGET:@SBOX_TARGET_ROOT@/lib/$GCC_TARGET"
 	SBOX_CROSS_GCC_SUBST_PREFIX=$GCC_PREFIX
 
 	cat - > $HOME/.scratchbox2/$TARGET/sb2.config.d/gcc$gcc_version_id.config.sh <<EOF
@@ -301,7 +301,7 @@ fi
 
 # Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real 
 # value when the session is created.
-SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib -L@SBOX_TARGET_ROOT@/lib"
+SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib -L@SBOX_TARGET_ROOT@/lib -L@SBOX_TARGET_ROOT@/usr/lib/$GCC_TARGET -L@SBOX_TARGET_ROOT@/lib/$GCC_TARGET"
 
 # test if the cross compiler needs to be silenced about /usr/include
 # usage ("gcc -E -Wno-poison-system-directories" is not a reliable way for

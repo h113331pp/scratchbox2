@@ -172,13 +172,23 @@ function check_buildroot_sanity()
 	fi
 
 	if [ ! -e lib/libc.so.6 ] && [ ! -e lib/libc.so.0 ]; then
-		echo "no lib/libc.so.6 or lib/libc.so.0"
-		a_ok=0
+		echo "no lib/libc.so.6 or lib/libc.so.0; searching for multiarch..."
+		if [ ! -e lib/$SB2INIT_MULTIARCH_PATH/libc.so.6 ] && [ ! -e lib/$SB2INIT_MULTIARCH_PATH/libc.so.6 ];then
+			echo "also no lib/$SB2INIT_MULTIARCH_PATH/libc.so.6 or lib/$SB2INIT_MULTIARCH_PATH/libc.so.0"
+			a_ok=0
+		else
+			echo "don't worry, there are lib/$SB2INIT_MULTIARCH_PATH/libc.so.6 and lib/$SB2INIT_MULTIARCH_PATH/libc.so.0"
+		fi
 	fi
 
 	if [ ! -e usr/lib/libc.so ]; then
-		echo "no usr/lib/libc.so"
-		a_ok=0
+		echo "no usr/lib/libc.so; searching for multiarch..."
+		if [ ! -e usr/lib/$SB2INIT_MULTIARCH_PATH/libc.so ];then
+			echo "no usr/lib/$SB2INIT_MULTIARCH_PATH/libc.so"
+			a_ok=0
+		else
+			echo "don't worry, there is usr/lib/$SB2INIT_MULTIARCH_PATH/libc.so"
+		fi
 	fi
 	
 	if [ $a_ok == 1 ]; then
@@ -188,6 +198,7 @@ function check_buildroot_sanity()
 or c-library. You should probably get either a ready rootfs tarball or
 copy the necessary files from your toolchain into place. After doing that
 you can re-run this script."
+		echo "Or you just chroot in and apt-get install libc6-dev"
 		exit 1
 	fi
 }
