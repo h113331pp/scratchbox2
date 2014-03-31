@@ -60,14 +60,14 @@ function write_gcc_config()
 	SBOX_TARGET_TOOLCHAIN_DIR=$(dirname "$SBOX_CROSS_GCC_DIR")
 	SBOX_CROSS_GCC_PREFIX_LIST=$GCC_TARGET-:$SB2INIT_CROSS_GCC_PREFIX_LIST:$GCC_PREFIX
 
-	# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real 
+	# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real
 	# value when the session is created.
 	SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS -rpath-link @SBOX_TARGET_ROOT@/usr/lib:@SBOX_TARGET_ROOT@/lib"
 	if [ -d $SBOX_TARGET_ROOT/usr/lib/$GCC_TARGET ]; then
-		SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS:$SBOX_TARGET_ROOT/usr/lib/$GCC_TARGET"
+		SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS:@SBOX_TARGET_ROOT@/usr/lib/$GCC_TARGET"
 	fi
 	if [ -d $SBOX_TARGET_ROOT/lib/$GCC_TARGET ]; then
-		SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS:$SBOX_TARGET_ROOT/lib/$GCC_TARGET"
+		SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS:@SBOX_TARGET_ROOT@/lib/$GCC_TARGET"
 	fi
 	SBOX_CROSS_GCC_SUBST_PREFIX=$GCC_PREFIX
 
@@ -184,7 +184,7 @@ if [ -z "$TARGET" ]; then
         exit 1
 fi
 
-SBOX_CONFIG_DIR=~/.scratchbox2/$TARGET/sb2.config.d 
+SBOX_CONFIG_DIR=~/.scratchbox2/$TARGET/sb2.config.d
 
 if [ -z "$SBOX_TARGET_ROOT" ]; then
         echo "Error: no target_root given"
@@ -311,9 +311,15 @@ else
 	SBOX_EXTRA_CROSS_COMPILER_STDINC="-I/usr/include"
 fi
 
-# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real 
+# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real
 # value when the session is created.
 SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib -L@SBOX_TARGET_ROOT@/lib"
+if [ -d $SBOX_TARGET_ROOT/usr/lib/$GCC_TARGET ]; then
+	SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib/$GCC_TARGET"
+fi
+if [ -d $SBOX_TARGET_ROOT/lib/$GCC_TARGET ]; then
+	SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/lib/$GCC_TARGET"
+fi
 
 # test if the cross compiler needs to be silenced about /usr/include
 # usage ("gcc -E -Wno-poison-system-directories" is not a reliable way for
