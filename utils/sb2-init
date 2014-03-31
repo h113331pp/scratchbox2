@@ -446,7 +446,7 @@ if [ -f $SBOX_SESSION_DIR/modes/$MAPPING_MODE/sb2rc ]; then
 	. $SBOX_SESSION_DIR/modes/$MAPPING_MODE/sb2rc "initializing"
 fi
 
-if [ ! $SB2INIT_SKIP_CHECKS ]; then
+if [ $SB2INIT_SKIP_CHECKS == "false" ]; then
 	check_buildroot_sanity
 fi
 
