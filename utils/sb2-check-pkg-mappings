@@ -145,7 +145,7 @@ tstamp=`/bin/date +%Y%m%d-%H%M`
 if [ -z "$pkgs2check" -a "$check_all_pkgs" = "yes" ]; then
 	# check all installed packages
 	echo "Checking visibility of all files installed from all packages to target_root:"
-	pkgs2check=`dpkg --get-selections | grep 'install$' | sed -e 's/install$//'`
+	pkgs2check=`dpkg --get-selections | grep 'install$' | sed -e 's/deinstall$//' | sed -e 's/install$//'`
 	status_file=STATUS-NEW.$tstamp.$$
 	bothreq_file=BOTH_REQ-NEW.$tstamp.$$
 elif [ "$check_all_pkgs" = "yes" ]; then
