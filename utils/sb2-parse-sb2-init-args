@@ -68,6 +68,11 @@ SB2INIT_TARGET=$1
 shift
 SB2INIT_COMPILERS=$*
 SB2INIT_MULTIARCH_PATH=$($SB2INIT_COMPILERS -dumpmachine)
+# the compiler's taget ARCH may contain "-none"
+echo "$SB2INIT_MULTIARCH_PATH" | grep -q "none"
+if [ $? -eq 0 ];then
+    SB2INIT_MULTIARCH_PATH=$(echo $SB2INIT_MULTIARCH_PATH | sed -e 's/-none//g')
+fi
 
 if [ -z "$SB2INIT_TARGET_ROOT" ]; then
 	# use current directory as the target root
