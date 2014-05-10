@@ -206,7 +206,9 @@ install-noarch: regular
 	$(Q)install -c -m 755 $(SRCDIR)/wrappers/deb-pkg-tools-wrapper $(prefix)/share/scratchbox2/wrappers/apt-get
 	$(Q)install -c -m 755 $(SRCDIR)/wrappers/ldconfig $(prefix)/share/scratchbox2/wrappers/ldconfig
 	$(Q)install -c -m 755 $(SRCDIR)/wrappers/texi2html $(prefix)/share/scratchbox2/wrappers/texi2html
+	$(Q)install -c -m 755 $(SRCDIR)/wrappers/dpkg-shlibdeps $(prefix)/share/scratchbox2/wrappers/dpkg-shlibdeps
 	$(Q)install -c -m 755 $(SRCDIR)/wrappers/dpkg-checkbuilddeps $(prefix)/share/scratchbox2/wrappers/dpkg-checkbuilddeps
+	$(Q)install -c -m 755 $(SRCDIR)/wrappers/dpkg-checkbuilddeps-copy-from-wheezy $(prefix)/share/scratchbox2/wrappers/dpkg-checkbuilddeps-copy-from-wheezy
 	$(Q)install -c -m 755 $(SRCDIR)/wrappers/debconf2po-update $(prefix)/share/scratchbox2/wrappers/debconf2po-update
 	$(Q)install -c -m 755 $(SRCDIR)/wrappers/host-gcc-tools-wrapper $(prefix)/share/scratchbox2/wrappers/host-gcc-tools-wrapper
 	$(Q)install -c -m 755 $(SRCDIR)/wrappers/gdb $(prefix)/share/scratchbox2/wrappers/gdb

@@ -332,7 +332,7 @@ function check_host_builddeps_by_real_tool()
 	# Run dpkg-checkbuilddeps in the "tools" mode
 	# Note: Can't use a pipeline here, we want to the
 	# dpkg-checkbuilddeps' return status.
-	run_in_tools_mode /usr/bin/dpkg-checkbuilddeps \
+	run_in_tools_mode /usr/share/scratchbox2/wrappers/dpkg-checkbuilddeps-copy-from-wheezy -a i386\
 		$args > $x_missing_dep_file 2>&1
 	if [ $tools_mode_tool_stat == 0 ]; then
 		# real dpkg-checkbuilddeps says "all ok"
@@ -367,6 +367,14 @@ function check_target_builddeps()
 	ret=0
 	verbose_message "SB2 Checking target build deps..."
 	missing_dep_file=`mktemp -p $SBOX_SESSION_DIR/tmp missing_deps.XXXXXXXXXX`
+	BUILD_ARCH=`dpkg-architecture -qDEB_BUILD_ARCH`
+	if [ -z "$SBOX_TARGET" ]; then
+		if [ -r ~/.scratchbox2/config ]; then
+			. ~/.scratchbox2/config
+		fi
+		SBOX_TARGET=$DEFAULT_TARGET
+		. ~/.scratchbox2/$SBOX_TARGET/sb2.config
+	fi
 
 	# dpkg-checkbuilddeps with another package db..
 	# a special rule in the tools mode is needed because the
@@ -374,7 +382,7 @@ function check_target_builddeps()
 	# --admindir option. Can't use a pipeline here, we want to the
 	# dpkg-checkbuilddeps' return status.
 	SBOX_TOOLS_MODE_VAR_LIB_DPKG_STATUS_LOCATION=$TARGET_DPKG_ADMINDIR_USABLE_PKGS/status \
-		run_in_tools_mode /usr/bin/dpkg-checkbuilddeps \
+		run_in_tools_mode /usr/share/scratchbox2/wrappers/dpkg-checkbuilddeps-copy-from-wheezy -a $BUILD_ARCH --admindir="$SBOX_TARGET_ROOT/var/lib/dpkg" \
 			$args > $missing_dep_file 2>&1
 	if [ $tools_mode_tool_stat == 0 ]; then
 		# real dpkg-checkbuilddeps says "all ok"

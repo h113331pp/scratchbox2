@@ -1,0 +1,69 @@
+#!/bin/bash
+#
+# "dpkg-shlibdeps" wrapper for scratchbox 2:
+
+args="$*"
+prog="$0"
+progbase=`basename $0`
+
+function error_not_inside_sb2()
+{
+	echo "SB2: $progbase wrapper: This wrapper can only be used from inside"
+	echo "the scratchbox 2'ed environment"
+	exit 1
+}
+
+if [ -z "$SBOX_SESSION_DIR" ]
+then
+	error_not_inside_sb2
+fi
+
+. $SBOX_SESSION_DIR/sb2-session.conf
+
+if [ -z "$sbox_mapmode" -o -z "$sbox_dir" ]
+then
+	error_not_inside_sb2
+fi
+
+# read-in mode-specific settings
+if [ -f $sbox_dir/share/scratchbox2/modeconf/sb2rc.$sbox_mapmode ]
+then
+	. $sbox_dir/share/scratchbox2/modeconf/sb2rc.$sbox_mapmode "$progbase"
+fi
+
+function deny_operation()
+{
+	echo "SB2: $progbase wrapper: Operation denied in this mode ($sbox_mapmode)"
+	echo "SB2: $progbase wrapper: You need to use another mode for installing and"
+	echo "SB2: $progbase wrapper: removing packages (typically the 'emulate' mode will do)"
+	exit 1
+}
+ignore_missing_info=n
+case "$progbase" in
+(dpkg-shlibdeps)
+	realtool=/usr/bin/dpkg-shlibdeps
+	for i in $args
+	do
+		case "$i" in
+		--ignore-missing-info)
+			ignore_missing_info=y
+			;;
+		esac
+	done
+	;;
+(*)
+	echo "SB2: $progbase wrapper: FATAL ERROR: don't know where to find real $progbase"
+	exit 1
+	;;
+esac
+
+MULTIARCH=`dpkg-architecture -qDEB_HOST_MULTIARCH`
+LD_LIBRARY_PATH=/lib:/lib/$MULTIARCH:/usr/lib:/usr/lib/$MULTIARCH:/usr/local/lib:/usr/local/lib/$MULTIARCH
+export LD_LIBRARY_PATH
+
+# Default: Ok to execute the real tool
+if [ "x$ignore_missing_info" = "xy" ]; then
+	exec $realtool $args
+else
+	exec $realtool --ignore-missing-info $args
+fi
