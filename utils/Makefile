@@ -25,7 +25,7 @@ $(D)/sb2-ruletree: $(D)/sb2-ruletree.o $(D)/../rule_tree/rule_tree.o
 
 #------------
 # sb2dctl, a tool for communicating with sb2d
-$(D)/sb2dctl: override CFLAGS := $(CFLAGS) -Wall -W -Werror \
+$(D)/sb2dctl: override CFLAGS := $(CFLAGS) -O0 -Wall -W -Werror \
 		-I$(SRCDIR)/preload -Ipreload/ $(PROTOTYPEWARNINGS) \
 		-I$(SRCDIR)/include
 
