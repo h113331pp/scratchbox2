@@ -122,7 +122,7 @@ if ($bc_value) {
 }
 
 if (@unmet) {
-	printf STDERR _g("%s: Unmet build dependencies: "), $progname;
+	printf STDERR _g("dpkg-checkbuilddeps: Unmet build dependencies: "), $progname;
 	print STDERR join(" ", map { $_->output() } @unmet), "\n";
 }
 if (@conflicts) {
