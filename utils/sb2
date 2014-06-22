@@ -1914,8 +1914,17 @@ SBOX_CONFIG_DIR=$HOME/.scratchbox2/$SBOX_TARGET/sb2.config.d
 __SB2_BINARYNAME="sb2:StartupTrampoline"
 export __SB2_BINARYNAME
 if [ $# -gt 0 -o "$STDIN" = true ]; then
-	binary="$1"
-	shift 1
+	while true;
+	do
+		binary="$1"
+		echo $binary | grep -q "="
+		ret=$?
+		if [ $ret -ne 0 ];then
+			break
+		fi
+		export $1
+		shift 1
+	done
 
 	# Use an array to preserve spaces in original arguments:
 	declare -a orig_args_array
