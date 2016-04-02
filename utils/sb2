@@ -1934,7 +1934,7 @@ if [ $# -gt 0 -o "$STDIN" = true ]; then
 		-X $SBOX_DIR/share/scratchbox2/scripts/sb2-exitreport \
 		-e $SBOX_CONFIG_DIR/env_vars \
 		-- \
-		$SBOX_DIR/bin/sb2-show start -- $binary "${orig_args_array[@]}"
+		$SBOX_DIR/bin/sb2-show start -- $binary "${orig_args_array[@]:1}"
 else
 	exec sb2-monitor $OPTS_FOR_SB2_MONITOR \
 		-L $SBOX_LIBSB2 \
