@@ -20,7 +20,7 @@
 # Currently there are two algorithms for this: Old and new.
 #
 # The old one, implemented completely as a shell script,
-# ignores many things that should be checked. The new one is 
+# ignores many things that should be checked. The new one is
 # is written in perl, but the implementation is still
 # incomplete. Currently things work so that this shell
 # script digs out the needed variables and feeds them to
@@ -413,7 +413,7 @@ function check_target_builddeps()
 	fi
 }
 
-function compare_target_and_host_results_with_new_tool() 
+function compare_target_and_host_results_with_new_tool()
 {
 	t_missing=$missing_deps
 	h_missing=$tools_missing_deps
@@ -435,11 +435,6 @@ function compare_target_and_host_results_with_new_tool()
 		"$t_missing" "$h_missing" "$both_required" "$host_accepted" "$host_ignored"
 	result2=$?
 	return $result2
-	#### if [ $? = 0 ]; then
-	####	result2="ok"
-	####else
-	####	result2="fail"
-	####fi
 }
 
 # First, make sure we are in a correct directory:
@@ -479,7 +474,6 @@ function old_deps_checker()
 
 	# Something is missing. To be able to get the missing packages from the
 	# host environment, at least the list of allowed packages is needed:
-	#
 	if [ ! -f $cfgfile_host_accepted_pkgs ]
 	then
 		verbose_message "OLD_CHK:"
