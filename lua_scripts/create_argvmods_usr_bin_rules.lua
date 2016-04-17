@@ -51,73 +51,39 @@ function argvmods_to_mapping_rules(prefix)
 end
 
 print("-- Argvmods-to-mapping-rules converter:")
-print("-- Automatically generated mapping rules. Do not edit:")
+print("-- Automatically generated mapping rules. Do not modify:")
 
--- Mode-specific fixed config settings to ruledb:
---
--- "enable_cross_gcc_toolchain" (default=true): All special processing
---     for the gcc-related tools (gcc,as,ld,..) will be disabled if set
---     to false.
---
-ruletree.attach_ruletree()
-
-local modename_in_ruletree = sb.get_forced_mapmode()
-if modename_in_ruletree == nil then
-	print("-- ERROR: modename_in_ruletree = nil")
-	os.exit(14)
-end
-
-enable_cross_gcc_toolchain = true
-
-tools = tools_root
-if (not tools) then
-	tools = "/"
-end
-
-if (tools == "/") then
-        tools_prefix = ""
-else
-        tools_prefix = tools
-end
-
-do_file(session_dir .. "/share/scratchbox2/modes/"..modename_in_ruletree.."/config.lua")
-
-ruletree.catalog_set("Conf."..modename_in_ruletree, "enable_cross_gcc_toolchain",
-        ruletree.new_boolean(enable_cross_gcc_toolchain))
-
-if exec_engine_loaded then
-	print("-- Warning: exec engine was already loaded, will load again")
-end
--- load the right argvmods_* file
-do_file(session_dir .. "/lua_scripts/argvmods_loader.lua")
-load_argvmods_file(nil)
-
--- Next, the argvmods stuff.
+do_file(session_dir .. "/lua_scripts/argvenvp.lua")
 
 print("argvmods_rules_for_usr_bin_"..sbox_cpu.." = {")
+print(" rules = {")
 argvmods_to_mapping_rules(sbox_cpu)
 if (default_rule ~= nil) then
 	print("  -- default:")
 	print("  ", default_rule)
 end
+print(" }")
 print("}")
 local prefixrule1 = "  {prefix=\"/usr/bin/"..sbox_cpu..
-	"\",rules=argvmods_rules_for_usr_bin_"..sbox_cpu.."},"
+	"\",chain=argvmods_rules_for_usr_bin_"..sbox_cpu.."},"
 local prefixrule2 = ""
 
 if sbox_cpu ~= sbox_uname_machine then
 	print("argvmods_rules_for_usr_bin_"..sbox_uname_machine.." = {")
+	print(" rules = {")
 	argvmods_to_mapping_rules(sbox_uname_machine)
 	if (default_rule ~= nil) then
 		print("  -- default:")
 		print("  ", default_rule)
 	end
+	print(" }")
 	print("}")
 	prefixrule2 = "  {prefix=\"/usr/bin/"..sbox_uname_machine..
-		"\",rules=argvmods_rules_for_usr_bin_"..sbox_uname_machine.."},"
+		"\",chain=argvmods_rules_for_usr_bin_"..sbox_uname_machine.."},"
 end
 
 print("argvmods_rules_for_usr_bin = {")
+print(" rules = {")
 print(prefixrule1)
 print(prefixrule2)
 argvmods_to_mapping_rules(nil)
@@ -125,6 +91,7 @@ if (default_rule ~= nil) then
 	print("  -- default:")
 	print("  ", default_rule)
 end
+print(" }")
 print("}")
 
 print("-- End of rules created by argvmods-to-mapping-rules converter.")

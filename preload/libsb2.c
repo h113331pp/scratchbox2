@@ -123,18 +123,9 @@ void *sbox_find_next_symbol(int log_enabled, const char *fn_name)
 				PACKAGE_NAME, fn_name, msg);
 		assert(0);
 	}
-	if (log_enabled && SB_LOG_IS_ACTIVE(SB_LOGLEVEL_NOISE)) {
-		Dl_info	dli;
-
-		if (dladdr(fn_ptr, &dli)) {
-			SB_LOG(SB_LOGLEVEL_NOISE, "%s: %s at 0x%p, in file '%s'",
-				__func__, fn_name, fn_ptr, dli.dli_fname);
-		} else {
-			SB_LOG(SB_LOGLEVEL_NOISE, "%s: %s at 0x%p",
-				__func__, fn_name, fn_ptr);
-		}
-	}
-
+	if (log_enabled)
+		SB_LOG(SB_LOGLEVEL_NOISE, "%s: %s at 0x%X", __func__,
+			fn_name, (int)fn_ptr);
 	return(fn_ptr);
 }
 
@@ -161,17 +152,6 @@ char *sb2show__map_path2__(const char *binary_name, const char *mapping_mode,
 	free_mapping_results(&mapping_result);
 	SB_LOG(SB_LOGLEVEL_DEBUG, "%s '%s'", __func__, pathname);
 	return(mapped__pathname);
-}
-
-char *sb2show__reverse_path__(const char *func_name, const char *abs_path, uint32_t classmask)
-{
-	char *reversed__path = NULL;
-
-	reversed__path = scratchbox_reverse_path(
-		func_name, abs_path, classmask);
-	SB_LOG(SB_LOGLEVEL_DEBUG, "%s '%s' => '%s'", __func__,
-		abs_path, reversed__path ? reversed__path : "<none>");
-	return(reversed__path);
 }
 
 char *sb2show__get_real_cwd__(const char *binary_name, const char *fn_name)
@@ -224,14 +204,12 @@ int freopen_errno(FILE *stream)
 */
 char *sbox_session_dir = NULL;
 char *sbox_session_mode = NULL; /* optional */
-char *sbox_vperm_ids = NULL;
-char *sbox_network_mode = NULL; /* optional */
+char *sbox_session_perm = NULL; /* optional */
 char *sbox_binary_name = NULL;
 char *sbox_exec_name = NULL;
 char *sbox_real_binary_name = NULL;
 char *sbox_orig_binary_name = NULL;
 char *sbox_active_exec_policy_name = NULL;
-char *sbox_mapping_method = NULL; /* optional */
 
 int sb2_global_vars_initialized__ = 0;
 
@@ -307,14 +285,10 @@ void sb2_initialize_global_variables(void)
 			cp = getenv("SBOX_SESSION_MODE");
 			if (cp) sbox_session_mode = strdup(cp);
 		}
-		if (!sbox_vperm_ids) {
-			cp = getenv("SBOX_VPERM_IDS");
-			if (cp) sbox_vperm_ids = strdup(cp);
-		}
-		if (!sbox_network_mode) {
+		if (!sbox_session_perm) {
 			/* optional variable */
-			cp = getenv("SBOX_NETWORK_MODE");
-			if (cp) sbox_network_mode = strdup(cp);
+			cp = getenv("SBOX_SESSION_PERM");
+			if (cp) sbox_session_perm = strdup(cp);
 		}
 		if (!sbox_binary_name) {
 			cp = getenv("__SB2_BINARYNAME");
@@ -335,10 +309,6 @@ void sb2_initialize_global_variables(void)
 		if (!sbox_active_exec_policy_name) {
 			cp = getenv("__SB2_EXEC_POLICY_NAME");
 			if (cp) sbox_active_exec_policy_name = strdup(cp);
-		}
-		if (!sbox_mapping_method) {
-			cp = getenv("SBOX_MAPPING_METHOD");
-			if (cp) sbox_mapping_method = strdup(cp);
 		}
 
 		if (sbox_session_dir) {

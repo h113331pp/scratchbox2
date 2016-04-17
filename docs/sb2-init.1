@@ -47,9 +47,6 @@ specify cpu transparency command, for example:
 CPU transparency method is the program which is used to execute
 foreign binaries, that the host computer can not execute directly.
 .TP
-\-p "command"
-specify cpu transparency command for staticly linked native binaries.
-.TP
 \-r [hostname]
 generate sbrsh config using remote device address
 .TP
@@ -81,12 +78,7 @@ skip checks for target root's /usr/include etc.
 set directory containing the build tools distribution
 .TP
 \-C "options"
-add extra options for the compiler, for example:
-.I -C "-fgnu89-inline"
-.TP
-\-L "options"
-add extra options for the linker, for example:
-.I -L "--sysroot=/"
+add extra options for the compiler, for example: -C "-fgnu89-inline"
 .TP
 \-A arch
 manually override target architecture

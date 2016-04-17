@@ -18,10 +18,6 @@ c) The host OS contains buggy components (this currently applies to
 
 Short description of the files:
 
-
-GDB pathces:
-============
-
 gdb-7.0.1+sb2.patch
 -------------------
 
@@ -81,20 +77,16 @@ gdb-7.0.1+sb2.patch
 	the inferior called exec(), the modification for this is made
 	in gdb/infrun.c.
 
-
-GLIBC/EGLIBC pathces:
-=====================
 [NOTE: patches for glibc/eglibc should be applied in this order:]
 
-ldconfig patch
---------------
-[available for eglibc-2.10]
+glibc-2.10-ldconfig.patch
+-------------------------
 	A bugfix for "ldconfig" (eglibc 2.10). The bug exists in 2.8, too.
 	Version 2.5 was ok.
 
-elf/rtld.c --argv0 option patch
--------------------------------
-[available for glibc-2.3.6, glibc-2.5, eglibc-2.8, eglibc-2.10, glibc-2.14.1]
+glibc-2.3.6-elf-rtld.c.patch, glibc-2.5-elf-rtld.c.patch,
+glibc-2.8-elf-rtld.c.patch, glibc-2.10-elf-rtld.c.1.patch
+--------------------------------------------------------
 
 	A small patch for the dynamic linker/loader ("ld.so", also known as
 	"ld-linux.so"). The dynamic linker is part of the "glibc" package.
@@ -113,9 +105,10 @@ elf/rtld.c --argv0 option patch
 	Note that this patch causes no harm in the default case, i.e.
 	when the dynamic linker is started "automatically" by the kernel.
 
-ld.so --rpath-prefix option patch
----------------------------------
-[available for glibc-2.5, eglibc-2.8, eglibc-2.10, glibc-2.14.1]
+glibc-2.5-ld.so-rpath-prefix-option.patch,
+glibc-2.8-ldso-rpath-prefix-option.patch,
+glibc-2.10-ldso-rpath-prefix-option.2.patch
+-------------------------------------------
 	
 	This patch adds a new option "--rpath-prefix" to ld.so.
 	This makes it possible to add a prefix to all RPATH and
@@ -128,9 +121,10 @@ ld.so --rpath-prefix option patch
 	Note that this patch causes no harm in the default case, i.e.
 	when the dynamic linker is started "automatically" by the kernel.
 
-/etc/nsswitch.conf location selection patch
--------------------------------------------
-[available for glibc-2.5, eglibc-2.8, eglibc-2.10, glibc-2.14.1]
+glibc-2.5-nsswitchconf-location.patch,
+glibc-2.8-nsswitchconf-location.patch,
+glibc-2.10-nsswitchconf-location.3.patch
+----------------------------------------
 	This patch makes location of the /etc/nsswitch.conf file
 	to be run-time configurable via an environment variable.
 
@@ -138,15 +132,17 @@ ld.so --rpath-prefix option patch
 	Without this, the sb2-virtualized environment will
 	always read /etc/nsswitch.conf from the host.
 
-nscd socket location selection patch
+glibc-2.5-nscd-socket-location,
+glibc-2.8-nscd-socket-location.patch,
+glibc-2.10-nscd-socket-location.4.patch
 ---------------------------------------
-[available for glibc-2.5, eglibc-2.8, eglibc-2.10, glibc-2.14.1]
 	This patch makes location of nscd's socket to be run-time
 	configurable via an environment variable.
 
-ld.so --nodefaultdirs option patch
+glibc-2.5-ldso-nodefaultdirs-option,
+glibc-2.8-ldso-nodefaultdirs-option.patch,
+glibc-2.10-ldso-nodefaultdirs-option.5.patch
 --------------------------------------------
-[available for glibc-2.5, eglibc-2.8, eglibc-2.10, glibc-2.14.1]
 	Adds a new option "--nodefaultdirs" to ld.so.
 
 	This option disables searching from the default directories
@@ -158,4 +154,19 @@ ld.so --nodefaultdirs option patch
 	host environment (such libraries that are missing from
 	the "scratchboxed" environment but are present in the host)
 
+==========
+
+ubuntu_lucid_64bit_fakeroot_fix.patch
+-------------------------------------
+
+	32-bit libfakeroot is missing from 64-bit Ubuntu Lucid
+	(version 1.14.4-1ubuntu1 of fakeroot is buggy); the bug
+	has been reported but haven't been fixed (Dec 16, 2010);
+	https://bugs.launchpad.net/ubuntu/+source/fakeroot/+bug/571091
+
+	To fix the problem:
+	- get the sources (atp-get source fakeroot)
+	- apply the patch
+	- use dpkg-buidpackage
+	- install the fixed version (1.14.4-1ubuntu1.1)
 

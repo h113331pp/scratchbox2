@@ -8,9 +8,7 @@
 #define MAPPING_H
 
 #include <sys/types.h>
-#include <stdint.h>
 
-#include "rule_tree.h"
 
 #define enable_mapping(a) ((a)->mapping_disabled--)
 #define disable_mapping(a) ((a)->mapping_disabled++)
@@ -50,41 +48,17 @@ typedef struct mapping_results_s {
 
 	/* filled if orig.virtual path was relative: */
 	char	*mres_virtual_cwd;
-
-	/* exec policy name */
-	const char	*mres_exec_policy_name;	
-	/* pointer to allocated exec policy name, freed at destructor
-	 * (note that the Lua mapping code allocates it, while the C
-	 * mapping code just uses a constant pointer to the shared
-	 * memory rule DB. So this is NULL in the latter case) */
-	char		*mres_allocated_exec_policy_name;
-
-	const char	*mres_error_text; /* NULL if OK */
-
-#if 1
-	/* FIXME: Temporary field:
-	 * "mres_fallback_to_lua_mapping_engine" will be
-	 * set if the C mapping engine failed, because
-	 * some features haven't been implemeted.
-	 * this causes fallback to the Lua mapping engine.
-	*/
-	const char	*mres_fallback_to_lua_mapping_engine;
-#endif
 } mapping_results_t;
 
-/* extern void clear_mapping_results_struct(mapping_results_t *res); */
-#define clear_mapping_results_struct(res) do{memset((res),0,sizeof(mapping_results_t));}while(0)
-
+extern void clear_mapping_results_struct(mapping_results_t *res);
 extern void free_mapping_results(mapping_results_t *res);
 
-extern void force_path_to_mapping_result(mapping_results_t *res, const char *path);
-
 extern void sbox_map_path(const char *func_name, const char *path,
-	int dont_resolve_final_symlink, mapping_results_t *res, uint32_t classmask);
+	int dont_resolve_final_symlink, mapping_results_t *res);
 
 extern void sbox_map_path_at(const char *func_name, int dirfd,
 	const char *path, int dont_resolve_final_symlink,
-	mapping_results_t *res, uint32_t classmask);
+	mapping_results_t *res);
 
 extern void sbox_map_path_for_sb2show(const char *binary_name,
 	const char *func_name, const char *path, mapping_results_t *res);
@@ -92,50 +66,28 @@ extern void sbox_map_path_for_sb2show(const char *binary_name,
 extern void sbox_map_path_for_exec(const char *func_name, const char *path,
 	mapping_results_t *res);
 
-extern void custom_map_path(const char *binary_name,
-	const char *func_name, const char *virtual_path,
-	int dont_resolve_final_symlink, uint32_t fn_class,
-	mapping_results_t *res, ruletree_object_offset_t rule_list_offset);
-
-extern char *custom_map_abstract_path(
-        ruletree_object_offset_t rule_list_offs, const char *binary_name, 
-        const char *virtual_orig_path, const char *func_name, 
-        int fn_class, const char **new_exec_policy_p);
-
+extern int sb_execve_preprocess(char **file, char ***argv, char ***envp);
 extern char *emumode_map(const char *path);
-#if 0
 extern void sb_push_string_to_lua_stack(char *str);
-#endif
-
-#if 0
-extern int sb_execve_postprocess(const char *exec_type,
-	const char *exec_policy_name,
+extern char *sb_execve_map_script_interpreter(const char *interpreter,
+        const char *interp_arg, const char *mapped_script_filename,
+	const char *orig_script_filename, char ***argv, char ***envp);
+extern int sb_execve_postprocess(char *exec_type,
 	char **mapped_file, char **filename, const char *binary_name,
 	char ***argv, char ***envp);
-#endif
+extern void sb_get_host_policy_ld_params(char **popen_ld_preload, char **popen_ld_lib_path);
 
 extern char *scratchbox_reverse_path(
-	const char *func_name, const char *full_path, uint32_t classmask);
+	const char *func_name, const char *full_path);
 
 extern const char *fdpathdb_find_path(int fd);
 
-extern char *prep_union_dir(const char *dst_path,
-		const char **src_paths, int num_real_dir_entries);
-
 /* ---- internal constants: ---- */
 
-/* "flags", Used by both the Lua and the C code:
- *    RULE_FLAGS_READONLY_FS_ALWAYS is same as RULE_FLAGS_READONLY,
- *    but it is easier to have two flags for this because Lua
- *    does not have bit operations; also it enables us to find
- *    rules that still use old syntax
-*/
+/* "flags", returned from mapping.lua to the C code: */
 #define SB2_MAPPING_RULE_FLAGS_READONLY			01
 #define SB2_MAPPING_RULE_FLAGS_CALL_TRANSLATE_FOR_ALL	02
 #define SB2_MAPPING_RULE_FLAGS_FORCE_ORIG_PATH		04
-#define SB2_MAPPING_RULE_FLAGS_READONLY_FS_IF_NOT_ROOT	010
-#define SB2_MAPPING_RULE_FLAGS_READONLY_FS_ALWAYS	020
-
 /* list of all known flags: The preload library will log a warning, if 
  * the mapping code (in Lua) returns unknown flags. This is important
  * because it provides some kind of notification if/when new flags are
@@ -145,45 +97,6 @@ extern char *prep_union_dir(const char *dst_path,
 #define SB2_MAPPING_RULE_ALL_FLAGS \
 	(SB2_MAPPING_RULE_FLAGS_READONLY | \
 	 SB2_MAPPING_RULE_FLAGS_CALL_TRANSLATE_FOR_ALL | \
-	 SB2_MAPPING_RULE_FLAGS_FORCE_ORIG_PATH | \
-	 SB2_MAPPING_RULE_FLAGS_READONLY_FS_IF_NOT_ROOT | \
-	 SB2_MAPPING_RULE_FLAGS_READONLY_FS_ALWAYS)
-
-/* Interface classes. 
- * These can be used as conditions in path mapping rules.
- * The interface definition files use these without prefix
- * (SB2_INTERFACE_CLASS_). see interface.master for examples.
- * Note: multiple values can be ORed.
-*/
-#define SB2_INTERFACE_CLASS_OPEN	0x1
-#define SB2_INTERFACE_CLASS_STAT	0x2
-#define SB2_INTERFACE_CLASS_EXEC	0x4
-
-#define SB2_INTERFACE_CLASS_SOCKADDR	0x8	/* address in bind, connect */
-#define SB2_INTERFACE_CLASS_FTSOPEN	0x10	/* ftsopen */
-#define SB2_INTERFACE_CLASS_GLOB	0x20	/* glob */
-
-#define SB2_INTERFACE_CLASS_GETCWD	0x40	/* getcwd() etc */
-#define SB2_INTERFACE_CLASS_REALPATH	0x80	/* realpath */
-#define SB2_INTERFACE_CLASS_SET_TIMES	0x100	/* utimes() etc: set timestamps */
-
-#define SB2_INTERFACE_CLASS_L10N	0x200	/* gettextdomain etc. */
-#define SB2_INTERFACE_CLASS_MKNOD	0x400
-#define SB2_INTERFACE_CLASS_RENAME	0x800
-
-#define SB2_INTERFACE_CLASS_PROC_FS_OP	0x1000	/* /proc file system operation */
-
-#define SB2_INTERFACE_CLASS_SYMLINK	0x2000
-#define SB2_INTERFACE_CLASS_CREAT	0x4000
-#define SB2_INTERFACE_CLASS_REMOVE	0x8000	/* unlink*, remove, rmdir */
-
-/* interface funtion ->  class(es) mapping table, 
- * created by gen-interface.c */
-typedef struct {
-	const	char	*fn_name;
-	uint32_t	fn_classmask;
-} interface_function_and_classes_t;
-extern interface_function_and_classes_t interface_functions_and_classes__public[];
-extern interface_function_and_classes_t interface_functions_and_classes__private[];
+	 SB2_MAPPING_RULE_FLAGS_FORCE_ORIG_PATH)
 
 #endif

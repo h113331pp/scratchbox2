@@ -17,7 +17,6 @@
  *
  * (all other files under /proc are used directly)
 */
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -196,8 +195,7 @@ static char *select_exe_path_for_sb2(
 	if (real_binary_name) {
 		/* real_binary_name contains host real path */
 		/* try to determine virtal real path */
-		char *exe = scratchbox_reverse_path("select_exe_path_for_sb2", real_binary_name,
-				SB2_INTERFACE_CLASS_PROC_FS_OP);
+		char *exe = scratchbox_reverse_path("select_exe_path_for_sb2", real_binary_name);
 		if (exe)
 			return(exe);
 		return(strdup(real_binary_name));
@@ -207,14 +205,14 @@ static char *select_exe_path_for_sb2(
 		/* only unmapped, unclean path is available */
 		char *rp;
 		char *reverse;
-		struct sb2context *sb2if = get_sb2context();
+		struct lua_instance *luaif = get_lua();
 
 		/* lua mapping is disabled at this point, need to enable it */
-		enable_mapping(sb2if);
+		enable_mapping(luaif);
 		/* calculate host real path */
 		rp = canonicalize_file_name(real_binary_name);
-		disable_mapping(sb2if);
-		release_sb2context(sb2if);
+		disable_mapping(luaif);
+		release_lua(luaif);
 
 		if (!rp) {
 			SB_LOG(SB_LOGLEVEL_ERROR,
@@ -226,8 +224,7 @@ static char *select_exe_path_for_sb2(
 			return(NULL);
 		}
 
-		reverse = scratchbox_reverse_path("select_exe_path_for_sb2", rp,
-				SB2_INTERFACE_CLASS_PROC_FS_OP);
+		reverse = scratchbox_reverse_path("select_exe_path_for_sb2", rp);
 		if (reverse) {
 			free(rp);
 			rp = reverse;
@@ -241,7 +238,7 @@ static char *select_exe_path_for_sb2(
 }
 
 static char *procfs_mapping_request_for_my_files(
-	const char *full_path, const char *base_path)
+	char *full_path, char *base_path)
 {
 	SB_LOG(SB_LOGLEVEL_DEBUG, "procfs_mapping_request_for_my_files(%s)",
 		full_path);
@@ -265,25 +262,25 @@ static char *procfs_mapping_request_for_my_files(
 				"procfs_mapping_request_for_my_files:"
 				" real link is ok (%s,%s)",
 				full_path, link_dest);
-			free((void*)exe_path_inside_sb2);
+			free(exe_path_inside_sb2);
 			return(NULL);
 		}
 		/* must create a replacement: */
 		if (symlink_for_exe_path(
 		    pathbuf, sizeof(pathbuf), exe_path_inside_sb2, getpid())) {
-			free((void*)exe_path_inside_sb2);
+			free(exe_path_inside_sb2);
 			return(strdup(pathbuf));
 		}
 		/* oops, failed to create the replacement.
 		 * must use the real link, it points to wrong place.. */
-		free((void*)exe_path_inside_sb2);
+		free(exe_path_inside_sb2);
 		return(NULL);
 	}
 	return(NULL);
 }
 
 static char *procfs_mapping_request_for_other_files(
-        const char *full_path, const char *base_path, const char *pid_path, pid_t pid)
+        char *full_path, char *base_path, char *pid_path, pid_t pid)
 {
         SB_LOG(SB_LOGLEVEL_DEBUG, "procfs_mapping_request_for_other_files(%s)",
 	       full_path);
@@ -314,7 +311,7 @@ static char *procfs_mapping_request_for_other_files(
                                                   buffer, len);
 
 		/* we don't need buffer anymore */
-		free((void*)buffer);
+		free(buffer);
 
 		orig_binary_name = read_env_value(orig_binary_name);
 		real_binary_name = read_env_value(real_binary_name);
@@ -335,19 +332,19 @@ static char *procfs_mapping_request_for_other_files(
 			       "procfs_mapping_request_for_other_files:"
 			       " real link is ok (%s,%s)",
 			       full_path, link_dest);
-			free((void*)exe_path_inside_sb2);
+			free(exe_path_inside_sb2);
 			return(NULL);
 		}
 		/* must create a replacement: */
 		if (symlink_for_exe_path(
 		    pathbuf, sizeof(pathbuf), exe_path_inside_sb2, pid)) {
-			free((void*)exe_path_inside_sb2);
+			free(exe_path_inside_sb2);
 			return(strdup(pathbuf));
 		}
 		/* oops, failed to create the replacement.
                  * must use the real link, it points to wrong place.. 
 		 */
-		free((void*)exe_path_inside_sb2);
+		free(exe_path_inside_sb2);
 		return(NULL);
 	}
 	return(NULL);
@@ -359,7 +356,7 @@ static const char proc_self_path[] = "/proc/self/";
  * returns mapped path if the path needs mapping,
  * or NULL if the original path can be used directly.
 */
-char *procfs_mapping_request(const char *path)
+char *procfs_mapping_request(char *path)
 {
 	char	my_process_path[PATH_MAX];
 	int	len, count;

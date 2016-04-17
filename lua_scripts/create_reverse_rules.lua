@@ -9,9 +9,13 @@
 -- will shut down if problems are detected (then path reversing won't be
 -- available and SB2 works just as it did before this feature was implemented)
 --
+-- FIXME:
+-- 1. Reverse rules won't be created if the forward rules use "func_name"
+-- conditions. It might be possible to fix that, but "func_names" certainly
+-- complicate sorting of the generated reversing rules.
 
-local allow_reversing = true	-- default = create reverse rules.
-local reversing_disabled_message = ""
+allow_reversing = true	-- default = create reverse rules.
+reversing_disabled_message = ""
 
 -- Order of reverse rules is not necessarily the same as order of forward rules
 function test_rev_rule_position(output_rules, d_path)
@@ -19,7 +23,7 @@ function test_rev_rule_position(output_rules, d_path)
         for n=1,table.maxn(output_rules) do
 		local rule = output_rules[n]
 		local cmp_result
-		cmp_result = sblib.test_path_match(d_path,
+		cmp_result = sb.test_path_match(d_path,
 			rule.dir, rule.prefix, rule.path)
 		if (cmp_result >= 0) then
 			return n
@@ -38,7 +42,7 @@ function is_identical_reverse_rule(r1,r2)
 	return false
 end
 
-function reverse_conditional_actions(output_rules, rev_rule_name, rule, n, forward_path, modename)
+function reverse_conditional_actions(output_rules, rev_rule_name, rule, n, forward_path)
 	local actions = rule.actions
 
 	local a
@@ -52,7 +56,7 @@ function reverse_conditional_actions(output_rules, rev_rule_name, rule, n, forwa
 		actions[a].path = rule.path
 		actions[a].dir = rule.dir
 		actions[a].name = string.format("%s/Act.%d", rev_rule_name, a)
-		reverse_one_rule_xxxx(output_rules, actions[a], a, forward_path, modename)
+		reverse_one_rule_xxxx(output_rules, actions[a], a, forward_path)
 		actions[a].prefix = nil
 		actions[a].path = nil
 		actions[a].dir = nil
@@ -60,7 +64,7 @@ function reverse_conditional_actions(output_rules, rev_rule_name, rule, n, forwa
 	end
 end
 
-function reverse_one_rule(output_rules, rule, n, modename)
+function reverse_one_rule(output_rules, rule, n)
 		local forward_path
 		if (rule.prefix) then
 			forward_path = rule.prefix
@@ -71,17 +75,17 @@ function reverse_one_rule(output_rules, rule, n, modename)
 		else
 			forward_path = nil
 		end
-		reverse_one_rule_xxxx(output_rules, rule, n, forward_path, modename)
+		reverse_one_rule_xxxx(output_rules, rule, n, forward_path)
 end
 
-function reverse_one_rule_xxxx(output_rules, rule, n, forward_path, modename)
+function reverse_one_rule_xxxx(output_rules, rule, n, forward_path)
 
 		local new_rule = {}
 		new_rule.comments = {}
 
 		if rule.name then
 			new_rule.name = string.format(
-				"Rev(%s): %s <%d>", modename, rule.name, n)
+				"Rev: %s <%d>", rule.name, n)
 		else
 			local auto_name = "??"
 			if (rule.prefix) then
@@ -92,7 +96,7 @@ function reverse_one_rule_xxxx(output_rules, rule, n, forward_path, modename)
 				auto_name = "path="..rule.path
 			end
 			new_rule.name = string.format(
-				"Rev(%s): %s <%d>", modename, auto_name, n)
+				"Rev: %s <%d>", auto_name, n)
 		end
 
 
@@ -103,9 +107,15 @@ function reverse_one_rule_xxxx(output_rules, rule, n, forward_path, modename)
 		end
 
 		if (rule.func_name ~= nil) then
-			table.insert(new_rule.comments, string.format(
-				"--NOTE: orig.rule '%s' had func_name requirement '%s'",
-				new_rule.name, rule.func_name))
+			if (rule.path == "/") then
+				-- allow reversion of func_name rules
+				-- for the root directory:
+			else
+				allow_reversing = false
+				reversing_disabled_message = string.format(
+					"Rule '%s' has 'func_name' attribute",
+					new_rule.name)
+			end
 		end
 
 		local d_path = nil
@@ -117,7 +127,7 @@ function reverse_one_rule_xxxx(output_rules, rule, n, forward_path, modename)
 			d_path = forward_path
 		elseif (rule.actions) then
 			reverse_conditional_actions(output_rules, new_rule.name,
-				rule, n, forward_path, modename)
+				rule, n, forward_path)
 			return
 		elseif (rule.map_to) then
 			d_path = rule.map_to .. forward_path
@@ -135,18 +145,10 @@ function reverse_one_rule_xxxx(output_rules, rule, n, forward_path, modename)
 		elseif (rule.if_exists_then_replace_by) then
 			d_path = rule.if_exists_then_replace_by
 			new_rule.replace_by = forward_path
-		elseif (rule.if_env_var_is_not_empty) then
-			table.insert(new_rule.comments, string.format(
-				"-- WARNING: Skipping 'if_env_var_is_not_empty' rule\t%d\n", n))
-			new_rule.optional_rule = true
-		elseif (rule.if_env_var_is_empty) then
-			table.insert(new_rule.comments, string.format(
-				"-- WARNING: Skipping 'if_env_var_is_empty' rule\t%d\n", n))
 		else
 			new_rule.error = string.format(
 				"--ERROR: Rule '%s' does not contain any actions",
 				new_rule.name)
-			new_rule.optional_rule = true
 		end
 
 		local idx = nil
@@ -160,16 +162,7 @@ function reverse_one_rule_xxxx(output_rules, rule, n, forward_path, modename)
 				new_rule.orig_path = rule.dir
 				idx = test_rev_rule_position(output_rules, d_path)
 			elseif (rule.path) then
-				if (rule.path == "/") then
-					-- Root directory rule.
-					if rule.map_to then
-						new_rule.path = rule.map_to
-					else
-						new_rule.path = d_path
-					end
-				else
-					new_rule.path = d_path
-				end
+				new_rule.path = d_path
 				new_rule.orig_path = rule.path
 				idx = test_rev_rule_position(output_rules, d_path)
 			end
@@ -223,161 +216,146 @@ function reverse_one_rule_xxxx(output_rules, rule, n, forward_path, modename)
 		end
 end
 
-function reverse_rules(ofile, output_rules, input_rules, modename)
+function reverse_rules(output_rules, input_rules)
         local n
         for n=1,table.maxn(input_rules) do
 		local rule = input_rules[n]
 
 		if rule.virtual_path then
 			-- don't reverse virtual paths
-			ofile:write(string.format("-- virtual_path set, not reversing\t%d\n", n))
-		elseif rule.rules then
-			reverse_rules(ofile, output_rules, rule.rules, modename)
-		elseif rule.union_dir then
-			-- FIXME
-			ofile:write(string.format("-- WARNING: Skipping union_dir rule\t%d\n", n))
+			print("-- virtual_path set, not reversing", n)
+		elseif rule.chain then
+			reverse_rules(output_rules, rule.chain.rules)
 		else
-			reverse_one_rule(output_rules, rule, n, modename)
+			reverse_one_rule(output_rules, rule, n)
 		end
 
 	end
 	return(output_rules)
 end
 
-function print_rules(ofile, rules)
+function print_rules(rules)
         local n
         for n=1,table.maxn(rules) do
 		local rule = rules[n]
 
-		ofile:write(string.format("\t{name=\"%s\",\n", rule.name))
+		print(string.format("\t{name=\"%s\",", rule.name))
 
 		local k
 		for k=1,table.maxn(rule.comments) do
-			ofile:write(rule.comments[k].."\n")
+			print(rule.comments[k])
 		end
 
 		if (rule.orig_prefix) then
-			ofile:write("\t -- orig_prefix\t"..rule.orig_prefix.."\n")
+			print("\t -- orig_prefix", rule.orig_prefix)
 		end
 		if (rule.orig_path) then
-			ofile:write("\t -- orig_path\t".. rule.orig_path.."\n")
+			print("\t -- orig_path", rule.orig_path)
 		end
 
 		if (rule.prefix) then
-			ofile:write("\t prefix=\""..rule.prefix.."\",\n")
+			print("\t prefix=\""..rule.prefix.."\",")
 		end
 		if (rule.path) then
-			ofile:write("\t path=\""..rule.path.."\",\n")
+			print("\t path=\""..rule.path.."\",")
 		end
 		if (rule.dir) then
-			ofile:write("\t dir=\""..rule.dir.."\",\n")
+			print("\t dir=\""..rule.dir.."\",")
 		end
 
 		if (rule.use_orig_path) then
-			ofile:write("\t use_orig_path=true,\n")
+			print("\t use_orig_path=true,")
 		end
 		if (rule.force_orig_path) then
-			ofile:write("\t force_orig_path=true,\n")
+			print("\t force_orig_path=true,")
 		end
-		if (rule.binary_name) then
-			ofile:write("\t binary_name=\""..rule.binary_name.."\",\n")
-		end
-		if (rule.optional_rule) then
-			ofile:write("\t optional_rule=true,\n")
-		end
-
 		-- FIXME: To be implemented. See the "TODO" list at top.
 		-- elseif (rule.actions) then
-		--	ofile:write("\t -- FIXME: handle 'actions'\n")
-		--	ofile:write(string.format(
-		--		"\t %s=\"%s\",\n\t use_orig_path=true},\n",
+		--	print("\t -- FIXME: handle 'actions'")
+		--	print(string.format(
+		--		"\t %s=\"%s\",\n\t use_orig_path=true},",
 		--		sel, fwd_target))
 		if (rule.map_to) then
-			ofile:write("\t map_to=\""..rule.map_to.."\",\n")
+			print("\t map_to=\""..rule.map_to.."\",")
 		end
 		if (rule.replace_by) then
-			ofile:write("\t replace_by=\""..rule.replace_by.."\",\n")
+			print("\t replace_by=\""..rule.replace_by.."\",")
 		end
 		if (rule.error) then
-			ofile:write(string.format("\t -- \t%s\n",rule.error))
+			print("\t -- ",rule.error)
 			allow_reversing = false
 			reversing_disabled_message = rule.error
 		end
-		ofile:write("\t},\n")
+		print("\t},")
 	end
-        ofile:write(string.format("-- Printed\t%d\trules\n",table.maxn(rules)))
+        print("-- Printed",table.maxn(rules),"rules")
 end
 
-for m_index,m_name in pairs(all_modes) do
-	local autorule_file_path = session_dir .. "/rules_auto/" .. m_name .. ".usr_bin.lua"
-	local rule_file_path = session_dir .. "/rules/" .. m_name .. ".lua"
-        local rev_rule_filename = session_dir .. "/rev_rules/" ..
-                 m_name .. ".lua"
-        local output_file = io.open(rev_rule_filename, "w")
+function process_chains(chains_table)
+        local n
 
-	allow_reversing = true	-- default = create reverse rules.
-	reversing_disabled_message = ""
+	-- ensure that all chains have names
+        for n=1,table.maxn(chains_table) do
+		if chains_table[n].name then
+			chains_table[n].rev_name = string.format(
+				"reverse_chain__%s", chains_table[n].name)
+		else
+			chains_table[n].rev_name = string.format(
+				"reverse_chain_%d", n)
+		end
+	end
 
-	local current_rule_interface_version = "105"
+        for n=table.maxn(chains_table),1,-1 do
+		if chains_table[n].noentry then
+			print("-- ========== ",n)
+			print("-- noentry")
+		else
+			print(string.format("-- ======= %s =======",
+				chains_table[n].rev_name))
+			print(string.format("%s = {", chains_table[n].rev_name))
 
-	-- rulefile will set these:
-	rule_file_interface_version = nil
-	fs_mapping_rules = nil
+			if chains_table[n].next_chain then
+				print(string.format("    next_chain=%s,",
+					chains_table[n].next_chain.rev_name))
+			else
+				print("    next_chain=nil,")
+			end
 
-	-- rulefile expects to see this:
-	active_mapmode = m_name
+			if chains_table[n].binary then
+				print(string.format("    binary=\"%s\",",
+					chains_table[n].binary,"\n"))
+			else
+				print("    binary=nil,")
+			end
 
-	-- Reload "constants", just to be sure:
-	do_file(session_dir .. "/lua_scripts/rule_constants.lua")
+			local output_rules = {}
+			local rev_rules = reverse_rules(output_rules, chains_table[n].rules)
+			if (allow_reversing) then
+				print("    rules={")
+				print_rules(rev_rules)
+				print("    }")
+			end
+			print("}")
+		end
+	end
 
-	do_file(autorule_file_path)
-	do_file(rule_file_path)
-
-	-- fail and die if interface version is incorrect
-        if (rule_file_interface_version == nil) or 
-           (type(rule_file_interface_version) ~= "string") then
-                io.stderr:write(string.format(
-                        "Fatal: Rule file interface version check failed: "..
-                        "No version information in %s",
-                        rule_file_path))
-                os.exit(89)
-        end
-        if rule_file_interface_version ~= current_rule_interface_version then
-                io.stderr:write(string.format(
-                        "Fatal: Rule file interface version check failed: "..
-                        "got %s, expected %s", rule_file_interface_version,
-                        current_rule_interface_version))
-                os.exit(88)
-        end
-
-	if (type(fs_mapping_rules) ~= "table") then
-                io.stderr:write("'fs_mapping_rule' is not an array.");
-                os.exit(87)
-        end
-
-	output_file:write("-- Reversed rules from "..rule_file_path.."\n")
-
-	local output_rules = {}
-	local rev_rules = reverse_rules(output_file, output_rules, fs_mapping_rules, m_name)
 	if (allow_reversing) then
-		output_file:write("reverse_fs_mapping_rules={\n")
-		print_rules(output_file, rev_rules)
-		-- Add a final rule for the root directory itself.
-		output_file:write("\t{\n")
-		output_file:write("\t\tname = \"Final root dir rule\",\n")
-		output_file:write("\t\tpath = \""..target_root.."\",\n")
-		output_file:write("\t\treplace_by = \"/\"\n")
-		output_file:write("\t},\n")
-		output_file:write("}\n")
+		print("reverse_chains = {")
+		for n=1,table.maxn(chains_table) do
+			if chains_table[n].noentry then
+				print(string.format("    -- %d = noentry",n))
+			else
+				print(string.format("    reverse_chain_%d,",n))
+			end
+		end
+		print("}")
 	else
-		output_file:write("-- Failed to create reverse rules (" ..
-			reversing_disabled_message .. ")\n")
-		output_file:write("reverse_fs_mapping_rules = nil\n")
+		print("-- Failed to create reverse rules (" ..
+			reversing_disabled_message .. ")")
+		print("reverse_chains = nil")
 	end
-        output_file:close()
 end
 
---cleanup
-rule_file_interface_version = nil
-fs_mapping_rules = nil
+print("-- Reversed rules from "..rule_file_path)
+process_chains(active_mode_mapping_rule_chains)
 

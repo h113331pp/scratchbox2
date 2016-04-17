@@ -34,8 +34,6 @@ Options:
     -t target         set target name
     -C "options"      add extra options for the compiler, for example:
                       "-fgnu89-inline"
-    -L "options"      add extra options for the linker, for example:
-                      "--sysroot=/"
     -A arch           manually override target architecture
     -h                print this help
     -m mapping_mode   target uses mapping_mode as default mode
@@ -60,15 +58,9 @@ function write_gcc_config()
 	SBOX_TARGET_TOOLCHAIN_DIR=$(dirname "$SBOX_CROSS_GCC_DIR")
 	SBOX_CROSS_GCC_PREFIX_LIST=$GCC_TARGET-:$SB2INIT_CROSS_GCC_PREFIX_LIST:$GCC_PREFIX
 
-	# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real
+	# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real 
 	# value when the session is created.
-	SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS -rpath-link @SBOX_TARGET_ROOT@/usr/lib:@SBOX_TARGET_ROOT@/lib"
-	if [ -d $SBOX_TARGET_ROOT/usr/lib/$GCC_TARGET ]; then
-		SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS:@SBOX_TARGET_ROOT@/usr/lib/$GCC_TARGET"
-	fi
-	if [ -d $SBOX_TARGET_ROOT/lib/$GCC_TARGET ]; then
-		SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS:@SBOX_TARGET_ROOT@/lib/$GCC_TARGET"
-	fi
+	SBOX_EXTRA_CROSS_LD_ARGS="-rpath-link @SBOX_TARGET_ROOT@/usr/lib:@SBOX_TARGET_ROOT@/lib"
 	SBOX_CROSS_GCC_SUBST_PREFIX=$GCC_PREFIX
 
 	cat - > $HOME/.scratchbox2/$TARGET/sb2.config.d/gcc$gcc_version_id.config.sh <<EOF
@@ -91,7 +83,7 @@ SBOX_CROSS_GCC_LD_ARGS=
 
 SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS"
 SBOX_EXTRA_CROSS_COMPILER_STDINC="$SBOX_EXTRA_CROSS_COMPILER_STDINC"
-SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS"
+SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_CROSS_GCC_PREFIX_LIST"
 EOF
 
 	cat - > $HOME/.scratchbox2/$TARGET/sb2.config.d/gcc.config$gcc_version_id.lua <<EOF
@@ -144,7 +136,7 @@ fi
 
 verbose=""
 
-while getopts t:m:C:L:A:M:hS:R:Vv option
+while getopts t:m:C:A:M:hS:R:Vv option
 do
 	case $option in
 	(A) ARCH=$OPTARG ;;
@@ -153,7 +145,6 @@ do
 	(t) TARGET=$OPTARG ;;
 	(m) MAPPING_MODE=$OPTARG ;;
 	(C) SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS $OPTARG " ;;
-	(L) SBOX_EXTRA_CROSS_LD_ARGS="$SBOX_EXTRA_CROSS_LD_ARGS $OPTARG " ;;
 	(S) SBOX_DIR=$OPTARG ;;
 	(R) SBOX_TARGET_ROOT=$OPTARG ;;
 	(V) SECONDARY_COMPILER=yes ;;
@@ -184,7 +175,7 @@ if [ -z "$TARGET" ]; then
         exit 1
 fi
 
-SBOX_CONFIG_DIR=~/.scratchbox2/$TARGET/sb2.config.d
+SBOX_CONFIG_DIR=~/.scratchbox2/$TARGET/sb2.config.d 
 
 if [ -z "$SBOX_TARGET_ROOT" ]; then
         echo "Error: no target_root given"
@@ -201,7 +192,7 @@ if [ -z "$MAPPING_MODE" ]; then
         exit 1
 fi
 
-if [ ! -d $SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE ]; then
+if [ ! -d $SBOX_DIR/share/scratchbox2/lua_scripts/pathmaps/$MAPPING_MODE ]; then
 	echo "Invalid mapping mode: $MAPPING_MODE"
 	exit 1
 fi
@@ -275,16 +266,16 @@ fi
 SBOX_CROSS_GCC_PROGS_PATH=$($GCC -print-search-dirs|grep ^programs:|sed 's/programs: =//')
 
 # default for the cross-gcc prefix list:
-# these may be changed by modes/$MAPPING_MODE/sb2rc
+# these may be changed by sb2rc.$MAPPING_MODE
 
 SB2INIT_CROSS_GCC_PREFIX_LIST=$ARCH-linux-
 
 # $ARCH and $MACHINE_ARCH have been set, get mode-specific settings..
-if [ -f $SBOX_SESSION_DIR/modes/$MAPPING_MODE/sb2rc ]; then
+if [ -f $SBOX_DIR/share/scratchbox2/modeconf/sb2rc.$MAPPING_MODE ]; then
 	if [ -n "$verbose" ] ; then
 		echo "Reading mode-specific settings.."
 	fi
-	. $SBOX_SESSION_DIR/modes/$MAPPING_MODE/sb2rc "initializing"
+	. $SBOX_DIR/share/scratchbox2/modeconf/sb2rc.$MAPPING_MODE "initializing"
 fi
 
 
@@ -292,34 +283,25 @@ fi
 SBOX_CROSS_GCC_SPECS_FILE=""
 SBOX_EXTRA_CROSS_COMPILER_STDINC=""
 
-# FIXME: SBOX_CROSS_GCC_SPECS_FILE may point to $SBOX_DIR/share/scratchbox2/modes
-# after this. It should point to a session-specific location, but we don't have any
-# mechanism for that currently.
 if [ -n "$GCC_SPECS" ]; then
 	# the file was specified on the command line
 	SBOX_CROSS_GCC_SPECS_FILE="$GCC_SPECS"
 # else try to locate a specs file which was provided with gcc
-elif [ -f $SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE/gcc-$SBOX_CROSS_GCC_VERSION-specs-$ARCH ]; then
-	SBOX_CROSS_GCC_SPECS_FILE="$SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE/gcc-$SBOX_CROSS_GCC_VERSION-specs-$ARCH"
-elif [ -f $SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE/gcc-$SBOX_CROSS_GCC_VERSION-specs ]; then
-	SBOX_CROSS_GCC_SPECS_FILE="$SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE/gcc-$SBOX_CROSS_GCC_VERSION-specs"
-elif [ -f $SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE/gcc-$SBOX_CROSS_GCC_SHORTVERSION-specs ]; then
-	SBOX_CROSS_GCC_SPECS_FILE="$SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE/gcc-$SBOX_CROSS_GCC_SHORTVERSION-specs"
-elif [ -f $SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE/gcc-specs ]; then
-	SBOX_CROSS_GCC_SPECS_FILE="$SBOX_DIR/share/scratchbox2/modes/$MAPPING_MODE/gcc-specs"
+elif [ -f $SBOX_DIR/share/scratchbox2/modeconf/gcc-$SBOX_CROSS_GCC_VERSION-specs-$ARCH.$MAPPING_MODE ]; then
+	SBOX_CROSS_GCC_SPECS_FILE="$SBOX_DIR/share/scratchbox2/modeconf/gcc-$SBOX_CROSS_GCC_VERSION-specs-$ARCH.$MAPPING_MODE"
+elif [ -f $SBOX_DIR/share/scratchbox2/modeconf/gcc-$SBOX_CROSS_GCC_VERSION-specs.$MAPPING_MODE ]; then
+	SBOX_CROSS_GCC_SPECS_FILE="$SBOX_DIR/share/scratchbox2/modeconf/gcc-$SBOX_CROSS_GCC_VERSION-specs.$MAPPING_MODE"
+elif [ -f $SBOX_DIR/share/scratchbox2/modeconf/gcc-$SBOX_CROSS_GCC_SHORTVERSION-specs.$MAPPING_MODE ]; then
+	SBOX_CROSS_GCC_SPECS_FILE="$SBOX_DIR/share/scratchbox2/modeconf/gcc-$SBOX_CROSS_GCC_SHORTVERSION-specs.$MAPPING_MODE"
+elif [ -f $SBOX_DIR/share/scratchbox2/modeconf/gcc-specs.$MAPPING_MODE ]; then
+	SBOX_CROSS_GCC_SPECS_FILE="$SBOX_DIR/share/scratchbox2/modeconf/gcc-specs.$MAPPING_MODE"
 else
 	SBOX_EXTRA_CROSS_COMPILER_STDINC="-I/usr/include"
 fi
 
-# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real
+# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real 
 # value when the session is created.
 SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib -L@SBOX_TARGET_ROOT@/lib"
-if [ -d $SBOX_TARGET_ROOT/usr/lib/$GCC_TARGET ]; then
-	SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib/$GCC_TARGET"
-fi
-if [ -d $SBOX_TARGET_ROOT/lib/$GCC_TARGET ]; then
-	SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/lib/$GCC_TARGET"
-fi
 
 # test if the cross compiler needs to be silenced about /usr/include
 # usage ("gcc -E -Wno-poison-system-directories" is not a reliable way for

@@ -40,7 +40,6 @@ install: build
 	rm -f debian/scratchbox2/usr/share/scratchbox2/host_usr
 	ln -sf ../.. debian/scratchbox2/usr/share/scratchbox2/host_usr
 	mv debian/scratchbox2/usr/lib* debian/libsb2/usr/
-	cp debian/libsb2/usr/lib/libsb2/wrappers/fakeroot debian/scratchbox2/usr/share/scratchbox2/wrappers/fakeroot
 
 binary-arch: install
 	dh_testdir -a

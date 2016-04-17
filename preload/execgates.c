@@ -430,17 +430,6 @@ int execvp_gate(
 	return do_execvep(result_errno_ptr, realfnname, file, argv, environ);
 }
 
-int execvpe_gate(
-	int *result_errno_ptr,
-	int (*real_execvpe_ptr)(const char *file, char *const argv[], char *const envp[]),
-	const char *realfnname,
-	const char *file,
-	char *const argv[],
-	char *const envp[])
-{
-	(void)real_execvpe_ptr;	/* not used */
-	return do_execvep(result_errno_ptr, realfnname, file, argv, envp);
-}
 
 /* SETRLIMIT_ARG1_TYPE is defined in interface.master */
 
@@ -523,66 +512,4 @@ int setrlimit64_gate(
 	return(result);
 }
 #endif
-
-/* popen():
- * Unfortunately we can't use same stragegy for popen() as what
- * was used for system(), because popen() needs to use some fields
- * of the FILE structure (otherwise pclose() would not work).
- * The solution is to set up the environment (LD_PRELOAD and
- * LD_LIBRARY_PATH) for the host, and then we'll use /bin/sh
- * of the host as a trampoline the get the process up & running.
- * This is not completely correct as location of /bin/sh should
- * be taken determined by the mapping rules, but in practise it
- * produces correct results.
-*/
-FILE *popen_gate(int *result_errno_ptr,
-	FILE *(*real_popen_ptr)(const char *command, const char *type),
-        const char *realfnname, const char *command, const char *type)
-{
-	char	*user_ld_lib_path = NULL;
-	char	*user_ld_preload = NULL;
-	char	*cp;
-	const char	*popen_ld_preload = NULL;
-	const char	*popen_ld_lib_path = NULL;
-	FILE	*res;
-
-	(void)realfnname;
-	SB_LOG(SB_LOGLEVEL_DEBUG, "popen(%s,%s)", command, type);
-
-	/* popen() uses our 'environ', so we'll have to make
-	 * temporary changes and restore the values after
-	 * popen() has created the process:
-	*/
-	cp = getenv("LD_LIBRARY_PATH");
-	if (cp) user_ld_lib_path = strdup(cp);
-	cp  = getenv("LD_PRELOAD");
-	if (cp) user_ld_preload  = strdup(cp);
-
-	popen_ld_preload = ruletree_catalog_get_string("config", "host_ld_preload");
-	popen_ld_lib_path = ruletree_catalog_get_string("config", "host_ld_library_path");
-
-	if (popen_ld_lib_path) setenv("LD_LIBRARY_PATH", popen_ld_lib_path, 1);
-	else unsetenv("LD_LIBRARY_PATH");
-	if (popen_ld_preload) setenv("LD_PRELOAD", popen_ld_preload, 1);
-	else unsetenv("LD_PRELOAD");
-
-	SB_LOG(SB_LOGLEVEL_DEBUG, "popen: LD_LIBRARY_PATH=%s", popen_ld_lib_path);
-	SB_LOG(SB_LOGLEVEL_DEBUG, "popen: LD_PRELOAD=%s", popen_ld_preload);
-
-	errno = *result_errno_ptr; /* restore to orig.value */
-	res = (*real_popen_ptr)(command, type);
-	*result_errno_ptr = errno;
-
-	SB_LOG(SB_LOGLEVEL_DEBUG, "popen: restoring LD_PRELOAD and LD_LIBRARY_PATH");
-
-	if (user_ld_lib_path) setenv("LD_LIBRARY_PATH", user_ld_lib_path, 1);
-	else unsetenv("LD_LIBRARY_PATH");
-	if (user_ld_preload) setenv("LD_PRELOAD", user_ld_preload, 1);
-	else unsetenv("LD_PRELOAD");
-
-	if (user_ld_lib_path) free(user_ld_lib_path);
-	if (user_ld_preload) free(user_ld_preload);
-
-	return(res);
-}
 

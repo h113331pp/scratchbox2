@@ -126,7 +126,7 @@ if [ "$check_if_out_of_date" = "yes" ]; then
 		echo
 		check_all_pkgs="yes"
 	elif [ $sbox_temp_dpkg_admin_dir/status -ot \
-	       $sbox_dir/share/scratchbox2/modes/$sbox_mapmode/fs_rules.lua ]; then
+	       $sbox_dir/share/scratchbox2/lua_scripts/pathmaps/$sbox_mapmode/00_default.lua ]; then
 		echo "SB2's mapping rules have been updated =>"
 		echo "$sbox_temp_dpkg_admin_dir/status might be out of date."
 		echo "going to update it now. This is going to take a while.."
@@ -145,7 +145,7 @@ tstamp=`/bin/date +%Y%m%d-%H%M`
 if [ -z "$pkgs2check" -a "$check_all_pkgs" = "yes" ]; then
 	# check all installed packages
 	echo "Checking visibility of all files installed from all packages to target_root:"
-	pkgs2check=`dpkg --get-selections | grep 'install$' | sed -e 's/deinstall$//' | sed -e 's/install$//'`
+	pkgs2check=`dpkg --get-selections | grep 'install$' | sed -e 's/install$//'`
 	status_file=STATUS-NEW.$tstamp.$$
 	bothreq_file=BOTH_REQ-NEW.$tstamp.$$
 elif [ "$check_all_pkgs" = "yes" ]; then
@@ -183,8 +183,8 @@ num_both_required=0
 
 # Read the mode-specific path ignore list.
 SB2_CHECK_PKG_MAPPINGS_IGNORE_LIST=""
-if [ -f $SBOX_SESSION_DIR/modes/$sbox_mapmode/sb2rc ]; then
-	. $SBOX_SESSION_DIR/modes/$sbox_mapmode/sb2rc "sb2-check-pkg-mappings"
+if [ -f $sbox_dir/share/scratchbox2/modeconf/sb2rc.$sbox_mapmode ]; then
+	. $sbox_dir/share/scratchbox2/modeconf/sb2rc.$sbox_mapmode "sb2-check-pkg-mappings"
 fi
 
 # for all installed packages..

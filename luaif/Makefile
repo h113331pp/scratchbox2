@@ -1,15 +1,11 @@
 LUASRC = luaif/lua-5.1.4/src
 
-# Not needed anymore, because Lua was dropped from libsb2:
-#	$(D)/luaif.o $(D)/argvenvp.o
+objs := $(D)/luaif.o $(D)/sb_log.o $(D)/paths.o $(D)/argvenvp.o
 
-objs := $(D)/sblib_luaif.o
-
-$(D)/sblib_luaif.o: preload/exported.h
+$(D)/sb_log.o: preload/exported.h
 
 luaif/libluaif.a: $(objs)
-luaif/libluaif.a: override CFLAGS := $(CFLAGS) -O2 -g -fPIC -Wall -W -I$(SRCDIR)/$(LUASRC) -I$(OBJDIR)/preload -I$(SRCDIR)/preload \
-	-Werror -Wmissing-prototypes -Wstrict-prototypes
+luaif/libluaif.a: override CFLAGS := $(CFLAGS) -O2 -g -fPIC -Wall -W -I$(SRCDIR)/$(LUASRC) -I$(OBJDIR)/preload -I$(SRCDIR)/preload
 luaif/libluaif.a: override LDFLAGS := $(LDFLAGS)
 luaif/libluaif.a: override LIBS := 
 
@@ -26,7 +22,7 @@ lua_objs := $(lua_sources_expanded:.c=.o)
 luaif/sb_log.o: include/scratchbox2_version.h
 
 luaif/liblua.a: $(lua_objs)
-luaif/liblua.a: override CFLAGS := -O2 -Dfopen=fopen_nomap -g -fPIC -Wall -W $(CFLAGS)
+luaif/liblua.a: override CFLAGS := -O2 -g -fPIC -Wall -W $(CFLAGS)
 luaif/liblua.a: override LDFLAGS := $(LDFLAGS)
 luaif/liblua.a: override LIBS :=
 

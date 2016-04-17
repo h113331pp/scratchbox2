@@ -32,7 +32,6 @@
 #include <signal.h>
 #include "libsb2.h"
 #include "exported.h"
-#include "rule_tree.h"
 
 #ifdef HAVE_FTS_H
 /* FIXME: why there was #if !defined(HAVE___OPENDIR2) around fts_open() ???? */
@@ -63,8 +62,7 @@ FTS * fts_open_gate(
 		clear_mapping_results_struct(&res);
 		path = *p;
 		sbox_map_path(realfnname, path,
-			0/*dont_resolve_final_symlink*/, &res,
-			SB2_INTERFACE_CLASS_FTSOPEN);
+			0/*dont_resolve_final_symlink*/, &res);
 		if (res.mres_result_path) {
 			/* Mapped OK */
 			*np = strdup(res.mres_result_path);
@@ -98,8 +96,7 @@ char * get_current_dir_name_gate(
 	}
 	*result_errno_ptr = errno;
 	if (*cwd != '\0') {
-		sbox_path = scratchbox_reverse_path(realfnname, cwd,
-				SB2_INTERFACE_CLASS_GETCWD);
+		sbox_path = scratchbox_reverse_path(realfnname, cwd);
 	}
 	if (sbox_path) {
 		free(cwd);
@@ -114,8 +111,7 @@ static char *getcwd_common(char *buf, size_t size,
 	char *sbox_path = NULL;
 
 	if (*cwd != '\0') {
-		sbox_path = scratchbox_reverse_path(realfnname, cwd,
-				SB2_INTERFACE_CLASS_GETCWD);
+		sbox_path = scratchbox_reverse_path(realfnname, cwd);
 	}
 	if (sbox_path) {
 SB_LOG(SB_LOGLEVEL_DEBUG, "GETCWD: '%s'", sbox_path);
@@ -187,8 +183,7 @@ static char *getwd_common(char *cwd, const char *realfnname, char *buf)
 	char *sbox_path = NULL;
 
 	if (*cwd != '\0') {
-		sbox_path = scratchbox_reverse_path(realfnname, cwd,
-				SB2_INTERFACE_CLASS_GETCWD);
+		sbox_path = scratchbox_reverse_path(realfnname, cwd);
 	}
 	if (sbox_path) {
 		if(buf) {
@@ -247,21 +242,20 @@ char *realpath_gate(
 	int *result_errno_ptr,
 	char *(*real_realpath_ptr)(const char *name, char *resolved),
         const char *realfnname,
-	const mapping_results_t *mapped_name,
+	const char *name,	/* name, already mapped */
 	char *resolved)
 {
 	char *sbox_path = NULL;
 	char *rp;
 	
 	errno = *result_errno_ptr; /* restore to orig.value */
-	if ((rp = (*real_realpath_ptr)(mapped_name->mres_result_path,resolved)) == NULL) {
+	if ((rp = (*real_realpath_ptr)(name,resolved)) == NULL) {
 		*result_errno_ptr = errno;
 		return NULL;
 	}
 	*result_errno_ptr = errno;
 	if (*rp != '\0') {
-		sbox_path = scratchbox_reverse_path(realfnname, rp,
-				SB2_INTERFACE_CLASS_REALPATH);
+		sbox_path = scratchbox_reverse_path(realfnname, rp);
 		if (sbox_path) {
 			if (resolved) {
 				strncpy(resolved, sbox_path, PATH_MAX);
@@ -289,7 +283,7 @@ char *__realpath_chk_gate(
 	char *(*real__realpath_chk_ptr)(__const char *__restrict __name,
 		char *__restrict __resolved, size_t __resolvedlen),
         const char *realfnname,
-	const mapping_results_t *mapped_name,
+	__const char *__restrict name,	/* name, already mapped */
 	char *__restrict __resolved,
 	size_t __resolvedlen)
 {
@@ -297,16 +291,13 @@ char *__realpath_chk_gate(
 	char *rp;
 	
 	errno = *result_errno_ptr; /* restore to orig.value */
-	if ((rp = (*real__realpath_chk_ptr)(mapped_name->mres_result_path,
-		__resolved,__resolvedlen)) == NULL) {
-
+	if ((rp = (*real__realpath_chk_ptr)(name,__resolved,__resolvedlen)) == NULL) {
 		*result_errno_ptr = errno;
 		return NULL;
 	}
 	*result_errno_ptr = errno;
 	if (*rp != '\0') {
-		sbox_path = scratchbox_reverse_path(realfnname, rp,
-				SB2_INTERFACE_CLASS_REALPATH);
+		sbox_path = scratchbox_reverse_path(realfnname, rp);
 		if (sbox_path) {
 			if (__resolved) {
 				strncpy(__resolved, sbox_path, __resolvedlen);
@@ -342,8 +333,7 @@ static char *check_and_prepare_glob_pattern(
 	*/
 	if (*pattern == '/') { /* if absolute path in pattern.. */
 		mapped__pattern = sbox_map_path(realfnname, pattern,
-			NULL/*RO-flag*/, 0/*dont_resolve_final_symlink*/,
-			SB2_INTERFACE_CLASS_GLOB);
+			NULL/*RO-flag*/, 0/*dont_resolve_final_symlink*/);
 		if (!strcmp(mapped__pattern, pattern)) {
 			/* no change */
 			free(mapped__pattern);
@@ -355,63 +345,6 @@ static char *check_and_prepare_glob_pattern(
 	return(mapped__pattern);
 }
 #endif
-
-/* test if a pointer points to glibc/eglibc.
- * uses dladdr(), which is a glibc-specific extension to libdl.
- *
- * returns 1 if the symbol is in glibc,
- *         0 if it isn't,
- *        -1 if the testing failed (may or may not be in glibc)
-*/
-static int test_if_address_is_in_glibc(const char *sym_name, void *ptr)
-{
-	Dl_info	dli;
-	Dl_info	dli_glibc;
-
-	SB_LOG(SB_LOGLEVEL_DEBUG, "%s: testing dladdr()", sym_name);
-	if (dladdr(ptr, &dli)) {
-		void *ptr_to_something_in_glibc;
-
-		SB_LOG(SB_LOGLEVEL_DEBUG, "%s: dladdr => 0x%p, fname='%s'",
-			sym_name, ptr, dli.dli_fname);
-
-		/* assume _IO_feof is in glibc, always
-		 * FIXME: This was just a random selection,
-		 * something more definitive should be used.
-		*/
-#define SYMBOL_WHICH_IS_ASSUMED_TO_BE_INSIDE_GLIBC "_IO_feof"
-		ptr_to_something_in_glibc = dlsym(RTLD_NEXT,
-			SYMBOL_WHICH_IS_ASSUMED_TO_BE_INSIDE_GLIBC);
-		if (!ptr_to_something_in_glibc) {
-			SB_LOG(SB_LOGLEVEL_INFO, "%s: %s was not found,"
-				" can't check if address of %s resides in glibc",
-				sym_name, SYMBOL_WHICH_IS_ASSUMED_TO_BE_INSIDE_GLIBC,
-				sym_name);
-			return(-1);
-		}
-
-		/* find out the path to glibc, and compare */
-		if (dladdr(ptr_to_something_in_glibc, &dli_glibc)) {
-			SB_LOG(SB_LOGLEVEL_DEBUG, "%s: _IO_feof is in fname='%s'",
-				sym_name, dli_glibc.dli_fname);
-			if (dli.dli_fname && dli_glibc.dli_fname) {
-				/* found files for both symbols */
-				if (!strcmp(dli.dli_fname, dli_glibc.dli_fname)) {
-					SB_LOG(SB_LOGLEVEL_DEBUG, "%s: is in glibc",
-						sym_name);
-					return(1);
-				}
-				SB_LOG(SB_LOGLEVEL_DEBUG, "%s: not in glibc",
-					sym_name);
-				return(0);
-			}
-			/* one or both filenames are missing, can't compare */
-			return(-1);
-		}
-	}
-	/* dladdr() failed */
-	return(-1);
-}
 
 int glob_gate(
 	int *result_errno_ptr,
@@ -434,22 +367,10 @@ int glob_gate(
 	*result_errno_ptr = errno;
 	if (mapped__pattern) free(mapped__pattern);
 #else
+	/* glob() has been replaced by a modified copy (from glibc) */
 	unsigned int	i;
 
-	if (test_if_address_is_in_glibc(realfnname, real_glob_ptr) == 0) {
-		/* glob() is not in glibc, use that directly.
-		 * Don't map the pattern; since glob() is somewhere else,
-		 * it is expected to use opendir(), stat(), etc from 
-		 * glibc and those calls will be directed to us
-		 * => we'll do pathmapping later.
-		*/
-		SB_LOG(SB_LOGLEVEL_INFO, "%s: using the real function", realfnname);
-		rc = (*real_glob_ptr)(pattern, flags, errfunc, pglob);
-		*result_errno_ptr = errno;
-		return(rc);
-	}
-	/* else glob() is in glibc, and must be replaced completely
-	 * (uses a modified copy, copied from glibc) */
+	(void)real_glob_ptr; /* not used */
 
 	SB_LOG(SB_LOGLEVEL_DEBUG, "%s: pattern='%s' gl_offs=%d, flags=0x%X",
 		realfnname, pattern, pglob->gl_offs, flags);
@@ -490,22 +411,10 @@ int glob64_gate(
 	*result_errno_ptr = errno;
 	if (mapped__pattern) free(mapped__pattern);
 #else
+	/* glob64() has been replaced by a modified copy (from glibc) */
 	unsigned int i;
 
-	if (test_if_address_is_in_glibc(realfnname, real_glob64_ptr) == 0) {
-		/* glob64() is not in glibc, use that directly.
-		 * Don't map the pattern; since glob64() is somewhere else,
-		 * it is expected to use opendir(), stat(), etc from 
-		 * glibc and those calls will be directed to us
-		 * => we'll do pathmapping later.
-		*/
-		SB_LOG(SB_LOGLEVEL_INFO, "%s: using the real function", realfnname);
-		rc = (*real_glob64_ptr)(pattern, flags, errfunc, pglob);
-		*result_errno_ptr = errno;
-		return(rc);
-	}
-	/* else glob64() needs to be replaced;
-	 * use a modified copy (copied from glibc) */
+	(void)real_glob64_ptr; /* not used */
 
 	SB_LOG(SB_LOGLEVEL_DEBUG, "%s: pattern='%s' gl_offs=%d, flags=0x%X",
 		realfnname, pattern, pglob->gl_offs, flags);
@@ -532,7 +441,7 @@ int uname_gate(
 	const char *realfnname,
 	struct utsname *buf)
 {
-	static const char *uname_machine = NULL;
+	static char *uname_machine = NULL;
 
 	(void)realfnname;	/* not used here */
 
@@ -546,10 +455,10 @@ int uname_gate(
 	if (sbox_session_dir) {
 		/* sb2 has been initialized. */
 		if (!uname_machine || !*uname_machine) {
-			uname_machine = ruletree_catalog_get_string(
-				"config", "sbox_uname_machine");
+			uname_machine = sb2__read_string_variable_from_lua__(
+				"sbox_uname_machine");
 		}
-		if (uname_machine && *uname_machine && buf)
+		if (uname_machine && *uname_machine)
 			snprintf(buf->machine, sizeof(buf->machine),
 					"%s", uname_machine);
 	}

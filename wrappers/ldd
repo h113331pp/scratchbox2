@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# "ldd" wrapper for scratchbox 2, to be used in the "devel"/"accel" modes
+# "ldd" wrapper for scratchbox 2, to be used in the "devel" mode
 # (this wrapper requires that target tools are available
 # at "/target_root")
 #
@@ -76,9 +76,9 @@ then
 fi
 
 # read-in mode-specific settings
-if [ -f $SBOX_SESSION_DIR/modes/$sbox_mapmode/sb2rc ]
+if [ -f $sbox_dir/share/scratchbox2/modeconf/sb2rc.$sbox_mapmode ]
 then
-	. $SBOX_SESSION_DIR/modes/$sbox_mapmode/sb2rc "$progbase"
+	. $sbox_dir/share/scratchbox2/modeconf/sb2rc.$sbox_mapmode "$progbase"
 fi
 
 OPTIONS=""
@@ -96,7 +96,7 @@ done
 
 if [ $NUM_FILES -eq 0 ]
 then
-	exec $sbox_target_root/usr/bin/ldd $OPTIONS
+	exec /target_root/usr/bin/ldd $OPTIONS
 fi
 
 for f in $FILES
@@ -107,7 +107,7 @@ do
 	fi
 	type=`$SBOX_SESSION_DIR/bin/sb2-show binarytype $f`
 	case "$type" in
-	target*) $sbox_target_root/usr/bin/ldd $OPTIONS $f;;
+	target*) /target_root/usr/bin/ldd $OPTIONS $f;;
 	host/*) host_compatible_binary $f;;
 	*) echo "ldd wrapper: Don't know how to handle $f (type=$type)"
 	esac

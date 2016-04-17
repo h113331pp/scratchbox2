@@ -17,8 +17,6 @@ if [ $(basename $my_path) != $(basename $0) ]; then
 	fi
 fi
 
-mapping_mode_for_dpkg_utils=simple
-
 function log_config_action()
 {
 	tstamp=`/bin/date '+%Y-%m-%d %H:%M:%S'`
@@ -120,44 +118,23 @@ arm*)
 	else
 		echo $SBOX_GCC_TARGET | grep -q -i eabi
 		if [ $? == 0 ]; then
-			echo $SBOX_GCC_TARGET | grep -q -i eabihf
-			if [ $? == 0 ]; then
-				DEBIAN_CPU=armhf
-			else
-				DEBIAN_CPU=armel
-			fi
+			DEBIAN_CPU=armel
 		fi
 	fi
 	;;
 esac
 
 case "$ARCH" in
-armhf)
-	default_DEB_BUILD_ARCH=$DEBIAN_CPU
-	default_DEB_BUILD_ARCH_ABI="gnueabihf"
-	default_DEB_BUILD_ARCH_CPU="arm"
-	default_DEB_BUILD_GNU_TYPE="arm-linux-gnueabihf"
-	default_DEB_BUILD_GNU_SYSTEM="linux-gnueabihf"
-	default_DEB_BUILD_MULTIARCH="arm-linux-gnueabihf"
-
-	default_DEB_HOST_GNU_TYPE="arm-linux-gnueabihf"
-	default_DEB_HOST_GNU_SYSTEM="linux-gnueabihf"
-	default_DEB_HOST_MULTIARCH="arm-linux-gnueabihf"
-	default_DEB_HOST_ARCH_CPU="arm"
-	default_DEB_HOST_ARCH_OS="linux"
-	;;
 arm*)
 	default_DEB_BUILD_ARCH=$DEBIAN_CPU
 	default_DEB_BUILD_ARCH_ABI="gnueabi"
-	default_DEB_BUILD_ARCH_CPU="arm"
-	default_DEB_BUILD_GNU_TYPE="arm-linux-gnueabi"
+	default_DEB_BUILD_ARCH_CPU=$ARCH
+	default_DEB_BUILD_GNU_TYPE=$ARCH-linux-gnueabi
 	default_DEB_BUILD_GNU_SYSTEM="linux-gnueabi"
-	default_DEB_BUILD_MULTIARCH="arm-linux-gnueabi"
 
-	default_DEB_HOST_GNU_TYPE="arm-linux-gnueabi"
+	default_DEB_HOST_GNU_TYPE=$ARCH-linux-gnueabi
 	default_DEB_HOST_GNU_SYSTEM="linux-gnueabi"
-	default_DEB_HOST_MULTIARCH="arm-linux-gnueabi"
-	default_DEB_HOST_ARCH_CPU="arm"
+	default_DEB_HOST_ARCH_CPU=$ARCH
 	default_DEB_HOST_ARCH_OS="linux"
 	;;
 *)
@@ -183,15 +160,8 @@ if [ ! -f $SBOX_CONFIG_DIR/debian.conf ]; then
 	: >$SBOX_CONFIG_DIR/debian.conf
 fi
 
-# test if dpkg-architecture exists and can be executed.
-# (Send stderr to /dev/null so that if dpkg-architecture
-# does not exits, this won't print extra crap..
-# FIXME: This complete debian configuration thing should
-# be disabled if the target system is not a debian based OS,
-# but just now there is no reliable way to find that out
-# automatically; e.g. if the target FS is being set up, and 
-# some files (like dpkg-architecture) do not exist yet..)
-DPKG_ARCHITECTURE_FULLPATH=$(sb2 -t $TARGET -m $mapping_mode_for_dpkg_utils which dpkg-architecture 2>/dev/null)
+# test if dpkg-architecture exists and can be executed
+DPKG_ARCHITECTURE_FULLPATH=$(sb2 -t $TARGET -m devel which dpkg-architecture)
 if [ $? != 0 ]; then
 	# Can't locate or run dpkg-architecture. Set the values here.
 	# FIXME: I'm still not sure if these settings are sane,
@@ -200,7 +170,6 @@ if [ $? != 0 ]; then
 
 	if [ -n "$verbose" ] ; then
 		echo "dpkg-architecture doesn't exist: Using built-in values"
-		echo "dumbs, I think you may need chroot in and apt-get install dpkg-dev"
 	fi
 
 	CONFIG_METHOD="used built-in values, arch=$ARCH and debian_cpu=$DEBIAN_CPU"
@@ -214,7 +183,6 @@ DEB_BUILD_ARCH_CPU=$default_DEB_BUILD_ARCH_CPU
 DEB_BUILD_GNU_CPU=$ARCH
 DEB_BUILD_GNU_TYPE=$default_DEB_BUILD_GNU_TYPE
 DEB_BUILD_GNU_SYSTEM=$default_DEB_BUILD_GNU_SYSTEM
-DEB_BUILD_MULTIARCH=$default_DEB_BUILD_MULTIARCH
 
 DEB_HOST_ARCH=$DEBIAN_CPU
 DEB_HOST_ARCH_OS=$default_DEB_HOST_ARCH_OS
@@ -223,7 +191,6 @@ DEB_HOST_ARCH_CPU=$default_DEB_HOST_ARCH_CPU
 DEB_HOST_GNU_CPU=$ARCH
 DEB_HOST_GNU_TYPE=$default_DEB_HOST_GNU_TYPE
 DEB_HOST_GNU_SYSTEM=$default_DEB_HOST_GNU_SYSTEM
-DEB_HOST_MULTIARCH=$default_DEB_HOST_MULTIARCH
 
 export DEB_BUILD_ARCH
 export DEB_BUILD_ARCH_CPU
@@ -231,7 +198,6 @@ export DEB_BUILD_ARCH_ABI
 export DEB_BUILD_GNU_CPU
 export DEB_BUILD_GNU_TYPE
 export DEB_BUILD_GNU_SYSTEM
-export DEB_BUILD_MULTIARCH
 
 export DEB_HOST_ARCH
 export DEB_HOST_ARCH_OS
@@ -240,7 +206,6 @@ export DEB_HOST_ARCH_CPU
 export DEB_HOST_GNU_CPU
 export DEB_HOST_GNU_TYPE
 export DEB_HOST_GNU_SYSTEM
-export DEB_HOST_MULTIARCH
 EOF
 
 else
@@ -254,13 +219,13 @@ else
 	# always when a session is created (that happens if
 	# the debian build system settings are already active),
 	# so we must build a script which clears the settings:
-	sb2 -u -t $TARGET -m $mapping_mode_for_dpkg_utils dpkg-architecture -a$DEBIAN_CPU |
+	sb2 -u -t $TARGET -m devel dpkg-architecture -a$DEBIAN_CPU |
 		sed -e 's/=.*//' -e 's/^/unset /' >$SBOX_CONFIG_DIR/debian.tmp0.$$
 	echo "dpkg-architecture -a$DEBIAN_CPU" >>$SBOX_CONFIG_DIR/debian.tmp0.$$
 
 	# Now we can run the script.
 	cat $SBOX_CONFIG_DIR/debian.tmp0.$$ |
-		sb2 -u -t $TARGET -m $mapping_mode_for_dpkg_utils >$SBOX_CONFIG_DIR/debian.tmp1.$$
+		sb2 -u -t $TARGET -m devel >$SBOX_CONFIG_DIR/debian.tmp1.$$
 
 	# the "-aARCH" flag of dpkg-architecture affect the target
 	# settings only (e.g. DEB_HOST_*). If we are cross-compiling

@@ -71,13 +71,6 @@
 #   - "no_libsb2_init_check" disables the call to sb2_initialize_global_variables()
 #   - "log_params(sb_log_params)" calls SB_LOG(sb_log_params); this can be
 #     used to log parameters of the call.
-#   - class(CLASSNAME,...) defines API class attributes (a comma-separated
-#     list can be used to specify multiple classes). The classname
-#     can be OPEN, STAT, EXEC, or other pre-defined name (see
-#     SB2_INTERFACE_CLASS_* constant definitions)
-#   - conditionally_class(CONDITION,CLASSNAME,...) adds API class attributes
-#     if CONDITION is true (a comma-separated list can be used to specify
-#     multiple classes, just like for "class").
 # For "GATE" only:
 #   - "pass_va_list" is used for generic varargs processing: It passes a
 #     "va_list" to the gate function.
@@ -92,38 +85,20 @@
 
 use strict;
 
-our($opt_d, $opt_W, $opt_E, $opt_L, $opt_M, $opt_n, $opt_m, $opt_V);
+our($opt_d, $opt_W, $opt_E, $opt_L, $opt_M);
 use Getopt::Std;
 use File::Basename;
 
 # Process options:
-getopts("dW:E:L:M:n:m:V:");
+getopts("dW:E:L:M:");
 my $debug = $opt_d;
 my $wrappers_c_output_file = $opt_W;		# -W generated_c_filename
 my $export_h_output_file = $opt_E;		# -E generated_h_filename
 my $export_list_for_ld_output_file = $opt_L;	# -L generated_list_for_ld
 my $export_map_for_ld_output_file = $opt_M;	# -M generated_export_map_for_ld
-my $interface_name = $opt_n;			# -n interface_name
-my $man_page_output_file = $opt_m;		# -m man_page_file_name
-my $vrs = $opt_V;				# -V sb2_version
+
 
 my $num_errors = 0;
-
-my $man_page_name = "";
-my $man_page_sect = "";
-if ($man_page_output_file) {
-	if ($man_page_output_file =~ m/^(.*\/)(.*)\.([0-9])/) {
-		$man_page_name = $2;
-		$man_page_sect = $3;
-	} else {
-		printf "ERROR: failed to extract manual name and section number ".
-			"from '%s'\n", $man_page_output_file;
-		$num_errors++;
-	}
-}
-
-my $man_page_body = ".TH $man_page_name $man_page_sect \"\" \"$vrs\" \"libsb2 interface man page\"\n";
-my $man_page_tail = "";
 
 # loglevel defaults to a value which a) causes compilation to fail, if
 # "LOGLEVEL" was not in interface.master and b) tries to be informative
@@ -339,7 +314,6 @@ sub minimal_function_declarator_parser {
 
 	# this structure will be returned:
 	my $res = {
-		'orig_funct_def' => $fn_declarator,
 		'fn_return_type' => undef,
 		'fn_name' => undef,
 		'fn_parameter_list' => "",
@@ -475,16 +449,6 @@ sub process_readonly_check_modifier {
 		"\t}\n";
 }
 
-sub class_list_to_expr {
-	my $class_list = shift;
-	my @class_arr;
-	my $class;
-        foreach $class (split(/,/,$class_list)) {
-		push(@class_arr, 'SB2_INTERFACE_CLASS_'.$class);
-	}
-	return ('('.join(' | ',@class_arr).')');
-}
-
 # Process the modifier section coming from the original input line.
 # This returns undef if failed, or a structure containing code fragments
 # and other information for the actual code generation phase.
@@ -504,7 +468,6 @@ sub process_wrap_or_gate_modifiers {
 	my $mods = {
 		'path_mapping_vars' => "",
 		'path_mapping_code' => "",
-		'path_nomap_code' => "",
 		'path_ro_check_code' => "",
 		'free_path_mapping_vars_code' => "",
 		'local_vars_for_varargs_handler' => "",
@@ -527,8 +490,6 @@ sub process_wrap_or_gate_modifiers {
 		'returns_string' => 0,			# flag
 		'check_libsb2_has_been_initialized' => 1, # flag
 		'log_params' => undef,
-		'class' => '0',
-		'conditionally_class' => '0',
 
 		# name of the function pointer variable
 		'real_fn_pointer_name' => "${fn_name}_next__",
@@ -575,7 +536,7 @@ sub process_wrap_or_gate_modifiers {
 				"\tsbox_map_path(__func__, ".
 					"$param_to_be_mapped, ".
 					"$no_symlink_resolve, ".
-					"&res_$new_name, classmask);\n".
+					"&res_$new_name);\n".
 				"\tif (res_$new_name.mres_errno) {\n".
 				"\t\tSB_LOG(SB_LOGLEVEL_DEBUG, \"mapping failed, errno %d\",".
 					" res_$new_name.mres_errno);\n".
@@ -583,11 +544,6 @@ sub process_wrap_or_gate_modifiers {
 				"\t\tfree_mapping_results(&res_$new_name);\n".
 				"\t\t$return_statement\n".
 				"\t}\n";
-			if ($command eq 'GATE') {
-				$mods->{'path_nomap_code'} .=
-					"\tclear_mapping_results_struct(&res_$new_name);\n".
-					"\tforce_path_to_mapping_result(&res_$new_name, $param_to_be_mapped);\n";
-			}
 			$mods->{'free_path_mapping_vars_code'} .=
 				"\tfree_mapping_results(&res_$new_name);\n";
 
@@ -627,17 +583,12 @@ sub process_wrap_or_gate_modifiers {
 					"$fd_param, ".
 					"$param_to_be_mapped, ".
 					"$no_symlink_resolve, ".
-					"&res_$new_name, classmask);\n".
+					"&res_$new_name);\n".
 				"\tif (res_$new_name.mres_errno) {\n".
 				"\t\terrno = res_$new_name.mres_errno;\n".
 				"\t\tfree_mapping_results(&res_$new_name);\n".
 				"\t\t$return_statement\n".
 				"\t}\n";
-			if ($command eq 'GATE') {
-				$mods->{'path_nomap_code'} .=
-					"\tclear_mapping_results_struct(&res_$new_name);\n".
-					"\tforce_path_to_mapping_result(&res_$new_name, $param_to_be_mapped);\n";
-			}
 			$mods->{'free_path_mapping_vars_code'} .=
 				"\tfree_mapping_results(&res_$new_name);\n";
 
@@ -722,23 +673,6 @@ sub process_wrap_or_gate_modifiers {
 			$mods->{'log_params'} = $1;
 		} elsif($modifiers[$i] eq 'no_libsb2_init_check') {
 			$mods->{'check_libsb2_has_been_initialized'} = 0;
-		} elsif($modifiers[$i] =~ m/^class\((.*)\)$/) {
-			if ($mods->{'class'} ne '0') {
-				printf "ERROR: redefinition of 'class' for '%s'\n",
-					$fn_name;
-				$num_errors++;
-			} else {
-				$mods->{'class'} = class_list_to_expr($1);
-			}
-		} elsif($modifiers[$i] =~ m/^conditionally_class\(([^,]*),(.*)\)$/) {
-			if ($mods->{'conditionally_class'} ne '0') {
-				printf "ERROR: redefinition of 'conditionally_class' for '%s'\n",
-					$fn_name;
-				$num_errors++;
-			} else {
-				$mods->{'conditionally_class_cnd'} = $1;
-				$mods->{'conditionally_class'} = class_list_to_expr($2);
-			}
 		} else {
 			printf "ERROR: unsupported modifier '%s'\n",
 				$modifiers[$i];
@@ -853,10 +787,10 @@ sub create_call_to_real_fn {
 sub create_call_to_gate_fn {
 	my $fn = shift;
 	my $mods = shift;
-	my @param_list_in_gate_call = @_;
+	my @param_list_in_next_call = @_;
 
-	my @gate_params_with_orig_types = @{$fn->{'all_params_with_types'}};
-	my $num_gate_params = @gate_params_with_orig_types;
+	my @gate_params_with_types = @{$fn->{'all_params_with_types'}};
+	my $num_gate_params = @gate_params_with_types;
 	my $orig_param_list;
 	my $modified_param_list;
 	my $gate_params = "&result_errno,".$mods->{'real_fn_pointer_name'}.", __func__";
@@ -867,36 +801,17 @@ sub create_call_to_gate_fn {
 	my $fn_name = $fn->{'fn_name'};
 
 	if($num_gate_params > 0) {
-		my $j;
-		my @gate_params_with_types;
-		for ($j = 0; $j < $num_gate_params; $j++) {
-			my $param_j_name = $fn->{'parameter_names'}->[$j];
-			my $mpo = $mods->{'mapped_params_by_orig_name'}->{$param_j_name};
-
-			if (defined $mpo) {
-				push @gate_params_with_types, "const mapping_results_t *$param_j_name";
-			} else {
-				if($debug) {
-					print "Gate: ".$fn_name.": $j: MODS: ".
-						$mods->{'parameter_types'}->[$j]." ".
-						$mods->{'parameter_names'}->[$j]." ### ".
-						$fn->{'all_params_with_types'}->[$j]."\n";
-				}
-				push @gate_params_with_types, $fn->{'all_params_with_types'}->[$j];
-			}
-		}
-
+		# has parameters
 		my $varargs_index = $fn->{'varargs_index'};
 
 		if($varargs_index >= 0) {
 			$gate_params_with_types[$varargs_index] =
-				$mods->{'parameter_types'}->[$varargs_index]." ".
-				$mods->{'parameter_names'}->[$varargs_index];
+				"va_list ap";
 		}
 		$orig_param_list = $gate_params.", ".
 			join(", ", @{$mods->{'parameter_names'}});
 		$modified_param_list = $gate_params.", ".
-			join(", ", @param_list_in_gate_call);
+			join(", ", @param_list_in_next_call);
 		$fn_ptr_prototype_params = join(", ",
 			@{$fn->{'all_params_with_types'}});
 		$prototype_params =
@@ -924,7 +839,7 @@ sub create_call_to_gate_fn {
 	($postprocessor_calls, $postprocessor_prototypes) = 
 		create_postprocessors($fn, $mods);
 
-	my $unmapped_call = "${fn_name}_gate($modified_param_list);\n";
+	my $unmapped_call = "${fn_name}_gate($orig_param_list);\n";
 
 	# nomap_nolog for a gate is a direct call to the real function
 	my $unmapped_nolog_call = "${fn_name}_next__(".
@@ -997,14 +912,6 @@ typedef const void scandir64_arg_t;
 
 ";
 
-sub add_fn_to_man_page {
-	my $fn = shift;
-
-	$man_page_body .= ".TP\n".$fn->{'orig_funct_def'}.";\n";
-}
-
-my %fn_to_classmasks;
-
 # Handle "WRAP" and "GATE" commands.
 sub command_wrap_or_gate {
 	my $command = shift;
@@ -1028,12 +935,7 @@ sub command_wrap_or_gate {
 	my $mods = process_wrap_or_gate_modifiers($command, $fn, $all_modifiers);
 	if(!defined($mods)) { return; } # return if modifiers failed
 
-	# Ok, all preparations done.
-	
-	# Add it to the document
-	add_fn_to_man_page($fn);
-
-	# Create the pointer, wrapper functions, etc.
+	# Ok, all preparations done. Create the pointer, wrapper functions, etc.
 	if($debug) { print "Creating code:\n"; }
 
 	my $real_fn_pointer_name = $mods->{'real_fn_pointer_name'};
@@ -1057,10 +959,6 @@ sub command_wrap_or_gate {
 		$nomap_funct_def."\n".
 		"{\n".
 		$mods->{'local_vars_for_varargs_handler'};
-	if($command eq 'GATE') {
-		# nomap versions of GATEs need the mapping result struct, too
-		$nomap_fn_c_code .= $mods->{'path_mapping_vars'};
-	}
 
 	# begin the function with "_nomap_nolog" suffix added to name:
 	my $nomap_nolog_funct_def = $funct_def;
@@ -1079,14 +977,7 @@ sub command_wrap_or_gate {
 	}
 	$wrapper_fn_c_code .=	"\tint saved_errno = errno;\n".
 				"\tint result_errno = saved_errno;\n".
-				"\tuint32_t classmask = ".$mods->{'class'}.";\n".
-				"\t(void)classmask; /* ok, if it isn't used */\n".
 				"\terrno = 0;\n";
-	if(defined($mods->{'conditionally_class_cnd'})) {
-		$wrapper_fn_c_code .=	"\tif(".$mods->{'conditionally_class_cnd'}.") {\n".
-				"\t\tclassmask |= (".$mods->{'conditionally_class'}.");\n".
-				"\t}\n";
-	}
 	$nomap_fn_c_code .=	"\tint saved_errno = errno;\n".
 				"\tint result_errno = saved_errno;\n";
 	$nomap_nolog_fn_c_code .= "\tint result_errno = errno;\n";
@@ -1105,8 +996,7 @@ sub command_wrap_or_gate {
 	$wrapper_fn_c_code .=		$mods->{'path_mapping_code'}.
 					$mods->{'path_ro_check_code'};
 	$wrapper_fn_c_code .=		$mods->{'va_list_handler_code'};
-	$nomap_fn_c_code .=		$mods->{'path_nomap_code'}.
-					$mods->{'va_list_handler_code'};
+	$nomap_fn_c_code .=		$mods->{'va_list_handler_code'};
 	$nomap_nolog_fn_c_code .=	$mods->{'va_list_handler_code'};
 
 	my $loglevel_no_real_fn;
@@ -1147,18 +1037,14 @@ sub command_wrap_or_gate {
 
 	# build the parameter list for the next call..
 	my @param_list_in_next_call;
-	my @param_list_in_gate_call;
 	my $i;
 	for($i=0; $i < $fn->{'num_parameters'}; $i++) {
 		my $param_name = $mods->{'parameter_names'}->[$i];
 		my $mapped_param = $mods->{'mapped_params_by_orig_name'}->{$param_name};
 		if(defined $mapped_param) {
 			push @param_list_in_next_call, $mapped_param;
-			my $mapping_result_struct_name = $mods->{'mapping_results_by_orig_name'}->{$param_name};
-			push @param_list_in_gate_call, "&$mapping_result_struct_name";
 		} else {
 			push @param_list_in_next_call, $param_name;
-			push @param_list_in_gate_call, $param_name;
 		}
 	}
 
@@ -1227,7 +1113,7 @@ sub command_wrap_or_gate {
 	} else { # GATE
 		($mapped_call, $unmapped_call, $unmapped_nolog_call,
 		 $prototypes, $postprocesors) = create_call_to_gate_fn(
-			$fn, $mods, @param_list_in_gate_call);
+			$fn, $mods, @param_list_in_next_call);
 	}
 	$export_h_buffer .= $prototypes;
 
@@ -1251,9 +1137,6 @@ sub command_wrap_or_gate {
 	$wrapper_fn_c_code .=		$mods->{'va_list_end_code'};
 	$wrapper_fn_c_code .=		$mods->{'free_path_mapping_vars_code'};
 	$nomap_fn_c_code .=		$mods->{'va_list_end_code'};
-	if($command eq 'GATE') {
-		$nomap_fn_c_code .=	$mods->{'free_path_mapping_vars_code'};
-	}
 	$nomap_nolog_fn_c_code .=	$mods->{'va_list_end_code'};
 
 	$wrapper_fn_c_code .=		$log_return_val.
@@ -1283,11 +1166,6 @@ sub command_wrap_or_gate {
 		$wrappers_c_buffer .= $nomap_nolog_fn_c_code;
 	}
 	$wrappers_c_buffer .= "\n";
-
-	# Finally, add name of the function and the classmask
-	# to the table, used to create interface_functions_and_classes
-	# table at end.
-	$fn_to_classmasks{$fn_name} = $mods->{'class'};
 }
 
 # Handle the "EXPORT" command.
@@ -1353,22 +1231,6 @@ while ($line = <STDIN>) {
 		next
 	}
 
-	# lines starting with @ are documentation
-	if ($line =~ m/^\s*@/) {
-		chomp($line);
-		# Split to fields. 1st=command, 2nd=text
-		my @man_field = split(/\s*:\s*/, $line, 2);
-		if($man_field[0] eq '@MAN') {
-			$man_page_body .= $man_field[1]."\n";
-		} elsif($man_field[0] eq '@MAN_TAIL') {
-			$man_page_tail .= $man_field[1]."\n";
-		} else {
-			printf "ERROR: Unknown documentation directive '%s'\n", $man_field[0];
-			$num_errors++;
-		}
-		next
-	}
-
 	# Add the line to the output files if it's not a command 
 	my $src_comment = $line;
 	if (not ($line =~ m/^(WRAP|EXPORT|GATE|LOGLEVEL)/i)) {
@@ -1430,21 +1292,11 @@ if(defined $wrappers_c_output_file) {
 		my $bn = basename($export_h_output_file);
 		$include_h_file = '#include "'.$bn.'"'."\n";
 	}
-	my $interface_functions_and_classes =
-		"interface_function_and_classes_t ".
-		"interface_functions_and_classes__".$interface_name."[] = {\n";
-	my $fnn;
-	foreach $fnn (sort(keys(%fn_to_classmasks))) {
-		$interface_functions_and_classes .= "\t{\"".$fnn."\", ".
-			$fn_to_classmasks{$fnn}."},\n";
-	}
-	$interface_functions_and_classes .= "\t{NULL, 0},\n};\n";
 	write_output_file($wrappers_c_output_file,
 		$file_header_comment.
 		'#include "libsb2.h"'."\n".
 		$include_h_file.
-		$wrappers_c_buffer.
-		$interface_functions_and_classes);
+		$wrappers_c_buffer);
 }
 if(defined $export_h_output_file) {
 	write_output_file($export_h_output_file,
@@ -1468,11 +1320,6 @@ if(defined $export_map_for_ld_output_file) {
 
 	write_output_file($export_map_for_ld_output_file,
 		$export_map);
-}
-
-if(defined $man_page_output_file) {
-	write_output_file($man_page_output_file,
-		$man_page_body.$man_page_tail);
 }
 
 exit(0);

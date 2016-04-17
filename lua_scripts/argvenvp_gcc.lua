@@ -17,10 +17,6 @@ gcc_compilers = {
 	"g77"
 }
 
-compiler_alternative_name = {
-	["cc"] = "gcc",
-}
-
 -- names, where cross_gcc_shortversion may be embedded to the name
 -- (e.g. gcc-3.4, g++-3.4)
 gcc_compilers_with_version = {
@@ -128,20 +124,10 @@ function add_cross_compiler(gccrule, version)
 			-- Compiler tools without version suffix
 			for i = 1, table.maxn(gcc_compilers) do
 				local tmp = {}
-				local compiler_name = gcc_compilers[i]
-				tmp.name = prefix .. compiler_name
-				tmp.new_filename = gccrule.cross_gcc_dir .. "/" .. gccrule.cross_gcc_subst_prefix .. compiler_name
-				if not sblib.path_exists(tmp.new_filename) then
-					if compiler_alternative_name[compiler_name] ~= nil then
-						tmp.new_filename = gccrule.cross_gcc_dir .. "/" ..
-							gccrule.cross_gcc_subst_prefix .. compiler_alternative_name[compiler_name]
-					end
-				end
-
-				if sblib.path_exists(tmp.new_filename) then
-					gcc_compiler_arg_mods(tmp, gccrule)
-					register_gcc_component_path(tmp, gccrule)
-				end
+				tmp.name = prefix .. gcc_compilers[i]
+				tmp.new_filename = gccrule.cross_gcc_dir .. "/" .. gccrule.cross_gcc_subst_prefix .. gcc_compilers[i]
+				gcc_compiler_arg_mods(tmp, gccrule)
+				register_gcc_component_path(tmp, gccrule)
 			end
 		end
 
@@ -151,10 +137,8 @@ function add_cross_compiler(gccrule, version)
 			tmp.name = prefix .. gcc_compilers_with_version[i] .. "-" ..
 				gccrule.cross_gcc_shortversion
 			tmp.new_filename = gccrule.cross_gcc_dir .. "/" .. gccrule.cross_gcc_subst_prefix .. gcc_compilers_with_version[i]
-			if sblib.path_exists(tmp.new_filename) then
-				gcc_compiler_arg_mods(tmp, gccrule)
-				register_gcc_component_path(tmp, gccrule)
-			end
+			gcc_compiler_arg_mods(tmp, gccrule)
+			register_gcc_component_path(tmp, gccrule)
 		end
 		
 		if require_version == false then
@@ -187,51 +171,49 @@ function add_cross_compiler(gccrule, version)
 	end
 end
 
-if (sbox_host_gcc_prefix_list and sbox_host_gcc_prefix_list ~= "") then
-	-- deal with host-gcc functionality, disables mapping
-	for prefix in string.gmatch(sbox_host_gcc_prefix_list, "[^:]+") do
-		for i = 1, table.maxn(gcc_compilers) do
-			local tmp = {}
-			tmp.name = prefix .. gcc_compilers[i]
-			tmp.new_filename = sbox_host_gcc_dir .. "/" .. sbox_host_gcc_subst_prefix .. gcc_compilers[i]
-			tmp.add_tail = {}
-			tmp.remove = {}
-			tmp.disable_mapping = 1
-			if (sbox_extra_host_compiler_args and sbox_extra_host_compiler_args ~= "") then
-				for gcc_extra in string.gmatch(sbox_extra_host_compiler_args, "[^ ]+") do
-					table.insert(tmp.add_tail, gcc_extra)
-				end
+-- deal with host-gcc functionality, disables mapping
+for prefix in string.gmatch(sbox_host_gcc_prefix_list, "[^:]+") do
+	for i = 1, table.maxn(gcc_compilers) do
+		local tmp = {}
+		tmp.name = prefix .. gcc_compilers[i]
+		tmp.new_filename = sbox_host_gcc_dir .. "/" .. sbox_host_gcc_subst_prefix .. gcc_compilers[i]
+		tmp.add_tail = {}
+		tmp.remove = {}
+		tmp.disable_mapping = 1
+		if (sbox_extra_host_compiler_args and sbox_extra_host_compiler_args ~= "") then
+			for gcc_extra in string.gmatch(sbox_extra_host_compiler_args, "[^ ]+") do
+				table.insert(tmp.add_tail, gcc_extra)
 			end
-			if (sbox_block_host_compiler_args and sbox_block_host_compiler_args ~= "") then
-				for gcc_block in string.gmatch(sbox_block_host_compiler_args, "[^ ]+") do
-					table.insert(tmp.remove, gcc_block)
-				end
-			end
-			register_gcc_component_path(tmp, nil)
 		end
+		if (sbox_block_host_compiler_args and sbox_block_host_compiler_args ~= "") then
+			for gcc_block in string.gmatch(sbox_block_host_compiler_args, "[^ ]+") do
+				table.insert(tmp.remove, gcc_block)
+			end
+		end
+		register_gcc_component_path(tmp, nil)
+	end
 
-		-- just map the filename for linkers and tools
-		for i = 1, table.maxn(gcc_linkers) do
-			local tmp = {}
-			tmp.name = prefix .. gcc_linkers[i]
-			tmp.new_filename = sbox_host_gcc_dir .. "/" .. sbox_host_gcc_subst_prefix .. gcc_linkers[i]
-			tmp.disable_mapping = 1
-			register_gcc_component_path(tmp, nil)
-		end
-		for i = 1, table.maxn(gcc_tools) do
-			local tmp = {}
-			tmp.name = prefix .. gcc_tools[i]
-			tmp.new_filename = sbox_host_gcc_dir .. "/" .. sbox_host_gcc_subst_prefix .. gcc_tools[i]
-			tmp.disable_mapping = 1
-			register_gcc_component_path(tmp, nil)
-		end
+	-- just map the filename for linkers and tools
+	for i = 1, table.maxn(gcc_linkers) do
+		local tmp = {}
+		tmp.name = prefix .. gcc_linkers[i]
+		tmp.new_filename = sbox_host_gcc_dir .. "/" .. sbox_host_gcc_subst_prefix .. gcc_linkers[i]
+		tmp.disable_mapping = 1
+		register_gcc_component_path(tmp, nil)
+	end
+	for i = 1, table.maxn(gcc_tools) do
+		local tmp = {}
+		tmp.name = prefix .. gcc_tools[i]
+		tmp.new_filename = sbox_host_gcc_dir .. "/" .. sbox_host_gcc_subst_prefix .. gcc_tools[i]
+		tmp.disable_mapping = 1
+		register_gcc_component_path(tmp, nil)
 	end
 end
 
 gcc_rule_file_path = session_dir .. "/gcc-conf.lua"
 
-if (sblib.path_exists(gcc_rule_file_path)) then
-	sblib.log("debug", "Loading GCC rules")
+if (sb.path_exists(gcc_rule_file_path)) then
+	sb.log("debug", "Loading GCC rules")
 	do_file(gcc_rule_file_path)
 end
 

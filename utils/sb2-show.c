@@ -31,38 +31,40 @@
  #endif
 #endif
 
-void *libsb2_handle = NULL;
+static void *libsb2_handle = NULL;
 
-/* command line options which will be exposed to sub-commands */
-typedef struct cmdline_options_s {
-	const	char	*progname;	/* well, not really an option. */
-	int		opt_verbose;
-	int		opt_ignore_directories;
-	const char	*binary_name;
-	const char	*function_name; 
-	int		function_name_set; 
-	const char	*debug_port; 
-
-	char	**additional_env; /* there can be multiple -E options */
-} cmdline_options_t;
-
-typedef struct command_table_s {
-	const char	*cmd_name;
-	int		cmd_must_have_session;
-	int		cmd_min_argc;
-	int		cmd_max_argc;
-	int		(*cmd_fn)(const struct command_table_s *cmd_s,
-				const cmdline_options_t *cmd_options,
-				int cmd_argc, char *cmd_argv[]);
-	const char	*cmd_helptext;
-} command_table_t;
-
-/* -------------------- wrapper functions for calling functions from
+/* -------------------- wrappers functions for calling functions from
  * 			libsb2.so; if sb2-show is executed outside of
  *			an sb2 session, libsb2.so is not available.
 */
 
-#include "libsb2callers.h"
+/* create a wrapper to a function returning void */
+#define LIBSB2_VOID_CALLER(funct_name, param_list, param_names) \
+	static void call_ ## funct_name param_list \
+	{ \
+		static	void *fnptr = NULL; \
+		if (!fnptr && libsb2_handle) \
+			fnptr = dlsym(libsb2_handle, #funct_name); \
+		if (fnptr) { \
+			((void(*)param_list)fnptr)param_names; \
+			return; \
+		} \
+	} \
+	extern void funct_name param_list; /* ensure that we got the prototype right */
+
+/* create a wrapper to a function with returns something */
+#define LIBSB2_CALLER(return_type, funct_name, param_list, param_names, errorvalue) \
+	static return_type call_ ## funct_name param_list \
+	{ \
+		static	void *fnptr = NULL; \
+		if (!fnptr && libsb2_handle) \
+			fnptr = dlsym(libsb2_handle, #funct_name); \
+		if (fnptr) { \
+			return(((return_type(*)param_list)fnptr)param_names); \
+		} \
+		return(errorvalue); \
+	} \
+	extern return_type funct_name param_list; /* ensure that we got the prototype right */
 
 /* create call_sb2show__binary_type__() */
 LIBSB2_CALLER(char *, sb2show__binary_type__,
@@ -76,13 +78,6 @@ LIBSB2_CALLER(char *, sb2show__map_path2__,
 	(binary_name, mapping_mode, fn_name, pathname, readonly),
 	NULL)
 
-/* create call_sb2show__reverse_path__() */
-LIBSB2_CALLER(char *, sb2show__reverse_path__,
-	(const char *func_name, \
-        const char *abs_path, uint32_t classmask),
-	(func_name, abs_path, classmask),
-	NULL)
-
 /* create call_sb2show__execve_mods__() */
 LIBSB2_CALLER(int, sb2show__execve_mods__,
 	(char *file, char *const *orig_argv, char *const *orig_envp,
@@ -93,6 +88,10 @@ LIBSB2_CALLER(int, sb2show__execve_mods__,
 /* create call_sb2__set_active_exec_policy_name__() */
 LIBSB2_VOID_CALLER(sb2__set_active_exec_policy_name__,
 	(const char *name), (name))
+
+/* create call_sb2__load_and_execute_lua_file__() */
+LIBSB2_VOID_CALLER(sb2__load_and_execute_lua_file__,
+	(const char *filename), (filename))
 
 /* create call_sb2__lua_c_interface_version__() */
 LIBSB2_CALLER(const char *, sb2__lua_c_interface_version__,
@@ -113,15 +112,6 @@ LIBSB2_VOID_CALLER(sblog_vprintf_line_to_logfile,
 /* create call_sb2__read_string_variable_from_lua__() */
 LIBSB2_CALLER(char *, sb2__read_string_variable_from_lua__,
 	(const char *name), (name), NULL)
-
-/* create call_sb2show__map_network_addr__() */
-LIBSB2_CALLER(int, sb2show__map_network_addr__,
-	(const char *binary_name, const char *fn_name,
-	 const char *protocol, const char *addr_type,
-	 const char *dst_addr, int port,
-	 char **addr_bufp, int *new_portp),
-	(binary_name, fn_name, protocol, addr_type,
-	 dst_addr, port, addr_bufp, new_portp), -1)
 
 int sb_loglevel__ = SB_LOGLEVEL_uninitialized;
 
@@ -147,8 +137,7 @@ void sblog_printf_line_to_logfile(
 
 /* -------------------- end of wrappers functions. */
 
-static void usage_exit(const char *progname, const char *errmsg, int exitstatus,
-	const command_table_t *cmds)
+static void usage_exit(const char *progname, const char *errmsg, int exitstatus)
 {
 	if (errmsg) 
 		fprintf(stderr, "%s: Error: %s\n", progname, errmsg);
@@ -167,21 +156,43 @@ static void usage_exit(const char *progname, const char *errmsg, int exitstatus,
 	    "\t-v             be more verbose\n"
 	    "\t-t             report elapsed time (real time elapsed while\n"
 	    "\t               executing 'command')\n"
+	    "\t-x filename    load and execute Lua code from file before\n"
+	    "\t               executing 'command'\n"
+	    "\t-X filename    load and execute Lua code from file after\n"
+	    "\t               executing 'command'\n"
 	    "\t-g port        use port as qemu gdbserver listening port\n"
 	    "\t               (default port is 1234)\n");
 
-	if (cmds) {
-		fprintf(stderr, "Commands:\n");
-		while (cmds->cmd_name) {
-			fprintf(stderr, "%s\n", cmds->cmd_helptext);
-			if (!cmds->cmd_must_have_session) {
-				fprintf(stderr, 
-				  "\t                       "
-				  "(can be used without a session)\n");
-			}
-			cmds++;
-		}
-	}
+	fprintf(stderr, "Commands:\n");
+	fprintf(stderr,
+	    "\tpath [path1] [path2].. show mappings of pathnames\n"
+	    "\twhich [path1] [path2].. (like the 'path' command, but less verbose)\n"
+	    "\trealcwd                show real current working directory\n"
+	    "\tpwd                    show virtual current working directory\n"
+	    "\texec file [argv1] [argv2]..\n"
+	    "\t                       show execve() modifications\n"
+	    "\texec-cmdline file [argv1] [argv2]..\n"
+	    "\t                       show execve() modifications on\n"
+	    "\t                       a single line (does not show full\n"
+	    "\t                       details)\n"
+	    "\tqemu-debug-exec file argv0 [argv1] [argv2]..\n"
+	    "\t                       show command line that can be used to\n"
+	    "\t                       start target binary under qemu\n"
+	    "\t                       gdbserver\n"
+	    "\tlog-error 'message'    add an error message to the log\n"
+	    "\tlog-warning 'message'  add a warning message to the log\n"
+	    "\tbinarytype realpath    detect & show type of program at\n"
+	    "\t                       'realpath' (already mapped path)\n"
+	    "\tverify-pathlist-mappings required-prefix [ignorelist]\n"
+	    "\t                       read list of paths from stdin and\n"
+	    "\t                       check that all paths will be mapped to\n"
+	    "\t                       required prefix\n"
+	    "\tvar variablename       show value of a string variable\n"
+	    "\texecluafile filename   load and execute Lua code from file\n"
+	    "\t                       (useful for debugging and/or\n"
+	    "\t                       benchmarking sb2 itself)\n"
+	    "\tlibraryinterface       show preload library interface version\n"
+	    "\t                       (the Lua <-> C code interface)\n");
 
 	fprintf(stderr, "\n"
 	    "'%s' must be executed inside sb2 sandbox (see the 'sb2'"
@@ -190,22 +201,22 @@ static void usage_exit(const char *progname, const char *errmsg, int exitstatus,
 	exit(exitstatus);
 }
 
-static int cmd_var(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
+static int command_show_variable(
+	int verbose,
+	const char *progname, 
+	const char *varname)
 {
-	char *value = call_sb2__read_string_variable_from_lua__(cmd_argv[1]);
+	char *value = call_sb2__read_string_variable_from_lua__(varname);
 
-	(void)cmdp;
-	(void)cmd_argc;
 	if (value) {
-		if (opts->opt_verbose) printf("%s = \"%s\"\n", cmd_argv[1], value);
+		if (verbose) printf("%s = \"%s\"\n", varname, value);
 		else printf("%s\n", value);
 		free(value);
 		return(0);
 	} 
 	/* failed */
-	if (opts->opt_verbose) printf("%s: %s does not exist\n",
-		opts->progname, cmd_argv[1]);
+	if (verbose) printf("%s: %s does not exist\n",
+		progname, varname);
 	return(1);
 }
 
@@ -459,34 +470,12 @@ static void print_qemu_debug_exec(void *priv,
 	printf("\n");
 }
 
-static int cmd_net(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	if (!strcmp(cmd_argv[1], "addr")) {
-		int res;
-		char *new_addr;
-		int  new_port;
-
-		if (cmd_argc < 5) {
-			usage_exit(opts->progname, "Too few parameters for subcommand 'net'", 1, NULL);
-		}
-		res = call_sb2show__map_network_addr__(opts->binary_name,
-			opts->function_name, ""/*protocol. currently unused.*/,
-			cmd_argv[2]/*addr_type*/, cmd_argv[3]/*dst_addr*/,
-			atoi(cmd_argv[4])/*port*/, &new_addr, &new_port);
-
-		printf("Result = %d, address = %s port = %d\n", 
-			res, new_addr, new_port);
-	} else {
-		usage_exit(opts->progname, "Subcommand must be 'addr'", 1, NULL);
-	}
-	return(0);
-}
-
 static void command_show_exec(
-	const cmdline_options_t *opts,
+	const char *binary_name,
+	const char *fn_name,
+	const char *progname, 
 	int argc, char **argv,
+	char **additional_env,
 	int verbose,
 	print_exec_fn_t print_exec_fn,
 	void *priv)
@@ -499,23 +488,9 @@ static void command_show_exec(
 	char	*mapped_path = NULL;
 	int	readonly_flag;
 	char	*ba[2];
-	const char *binary_name = opts->binary_name;
-	const char *fn_name = opts->function_name;
-	const char *progname = opts->progname;
-	char **additional_env = opts->additional_env;
-
-	if (!opts->function_name_set) {
-		/* function name was not specified by an option.
-		 * default to execvp(); some modes have rules which
-		 * depend on function name, and output may not be
-		 * correct if mapping is called with default 
-		 * "anyfunction" tag.
-		*/
-		fn_name = "execvp";
-	}
-
+	
 	if (argc < 1) {
-		usage_exit(progname, "Too few parameters for this command", 1, NULL);
+		usage_exit(progname, "Too few parameters for this command", 1);
 	}
 
 	/* fix __SB2_BINARYNAME in the environment that is going to be
@@ -573,129 +548,76 @@ static void command_show_path(const char *binary_name, const char *fn_name,
 	}
 }
 
-static int cmd_reverse(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	(void)cmd_argc;
-	cmd_argv++;
-	while (*cmd_argv) {
-		char *reversed_path;
-		/* sb2show__binary_type__() operates on
-		 * real paths; map the path first.. */
-		reversed_path = call_sb2show__reverse_path__(
-			opts->function_name, *cmd_argv, 0/*FIXME-should be classmask, but not used currently*/);
-		if (!reversed_path) {
-			printf("%s: Reversing failed\n", *cmd_argv);
-		} else {
-			printf("%s => %s\n", *cmd_argv, reversed_path);
-			free(reversed_path);
-		}
-		cmd_argv++;
-	}
-	return(0);
-}
-
-static int cmd_binarytype(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
+static void command_show_binarytype(const char *binary_name,
+        const char *fn_name, int verbose, char **argv)
 {
 	char	*mapped_path = NULL;
 	int	readonly_flag;
 
-	(void)cmdp;
-	(void)cmd_argc;
-	cmd_argv++;
-	while (*cmd_argv) {
+	while (*argv) {
 		/* sb2show__binary_type__() operates on
 		 * real paths; map the path first.. */
-		mapped_path = call_sb2show__map_path2__(opts->binary_name, "",
-			opts->function_name, *cmd_argv, &readonly_flag);
+		mapped_path = call_sb2show__map_path2__(binary_name, "",
+			fn_name, *argv, &readonly_flag);
 		if (!mapped_path) {
-			printf("%s: Mapping failed\n", *cmd_argv);
+			printf("%s: Mapping failed\n", *argv);
 		} else {
 			char *type = call_sb2show__binary_type__(mapped_path);
-			if (opts->opt_verbose) {
+			if (verbose) {
 				printf("%s: %s\n", mapped_path, type);
 			} else {
 				printf("%s\n", type);
 			}
 			free(type);
 		}
-		cmd_argv++;
+		argv++;
 	}
-	return(0);
 }
 
-static int cmd_realcwd(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
+static void command_show_realcwd(const char *binary_name, const char *fn_name)
 {
 	char	*real_cwd_path = NULL;
 
-	(void)cmdp;
-	(void)cmd_argc;
-	(void)cmd_argv;
-	real_cwd_path = call_sb2show__get_real_cwd__(opts->binary_name, opts->function_name);
+	real_cwd_path = call_sb2show__get_real_cwd__(binary_name, fn_name);
 	printf("%s\n", real_cwd_path ? real_cwd_path : "<null>");
-	return(0);
 }
 
-static int cmd_realpath(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	char	real_path[PATH_MAX+1];
-	char	*rp;
-
-	(void)cmdp;
-	(void)cmd_argc;
-	(void)opts;
-	rp = realpath(cmd_argv[1], real_path);
-	if (rp) {
-		printf("%s\n", rp);
-	} else {
-		perror(opts->progname);
-	}
-	return(0);
-}
-
-static int cmd_pwd(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
+static void command_show_pwd(const char *progname)
 {
 	char	path_buf[PATH_MAX + 1];
 
-	(void)cmdp;
-	(void)cmd_argc;
-	(void)cmd_argv;
 	if (getcwd(path_buf, sizeof(path_buf))) {
 		printf("%s\n", path_buf);
 	} else {
 		if (errno == ERANGE) {
 			fprintf(stderr, "%s: CWD is longer than PATH_MAX\n",
-				opts->progname);
+				progname);
 		} else {
-			perror(opts->progname);
+			perror(progname);
 		}
-		return(1);
+		exit(1);
 	}
-	return(0);
 }
 
 /* read paths from stdin, report paths that are not mapped to specified
  * directory.
  * returns 0 if all OK, 1 if one or more paths were not mapped.
 */
-static int cmd_verify_pathlist_mappings(const command_table_t *cmdp,
-			const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
+static int command_verify_pathlist_mappings(
+	const char *binary_name,
+	const char *fn_name,
+	int ignore_directories,
+	int verbose,
+	const char *progname,
+	char **argv)
 {
 	int	destination_prefix_len;
 	char	path_buf[PATH_MAX + 1];
-	const char *required_destination_prefix = cmd_argv[1];
+	const char *required_destination_prefix = argv[0];
 	int	result = 0;
 
-	(void)cmdp;
-	(void)cmd_argc;
 	if (!required_destination_prefix) {
-		usage_exit(opts->progname, "'destination_prefix' is missing", 1, NULL);
+		usage_exit(progname, "'destination_prefix' is missing", 1);
 	}
 	destination_prefix_len = strlen(required_destination_prefix);
 
@@ -715,7 +637,7 @@ static int cmd_verify_pathlist_mappings(const command_table_t *cmdp,
 		}
 		if (len == 0) continue;
 
-		for (ignore_path = cmd_argv+2; *ignore_path; ignore_path++) {
+		for (ignore_path = argv+1; *ignore_path; ignore_path++) {
 			int	ign_len;
 
 			if (**ignore_path == '@') {
@@ -734,7 +656,7 @@ static int cmd_verify_pathlist_mappings(const command_table_t *cmdp,
 
 				if (!strncmp(path_buf, *ignore_path, ign_len)) {
 					ignore_this = 1;
-					if (opts->opt_verbose)
+					if (verbose)
 						printf("IGNORED by prefix: %s\n",
 							path_buf);
 					break;
@@ -745,7 +667,7 @@ static int cmd_verify_pathlist_mappings(const command_table_t *cmdp,
 
 				if (!strncmp(path_buf, *ignore_path, ign_len)) {
 					require_both = 1;
-					if (opts->opt_verbose)
+					if (verbose)
 						printf("REQUIRE_BOTH by prefix: %s\n",
 							path_buf);
 					break;
@@ -755,20 +677,20 @@ static int cmd_verify_pathlist_mappings(const command_table_t *cmdp,
 
 		if (ignore_this) continue;
 
-		mapped_path = call_sb2show__map_path2__(opts->binary_name, "",
-				opts->function_name, path_buf, &readonly_flag);
+		mapped_path = call_sb2show__map_path2__(binary_name, "",
+				fn_name, path_buf, &readonly_flag);
 		if (!mapped_path) {
-			if (opts->opt_verbose)
+			if (verbose)
 				printf("%s: Mapping failed\n", path_buf);
 			continue;
 		}
 
-		if (opts->opt_ignore_directories) {
+		if (ignore_directories) {
 			struct stat statbuf;
 
 			if ((stat(mapped_path, &statbuf) == 0) &&
 			   S_ISDIR(statbuf.st_mode)) {
-				if (opts->opt_verbose)
+				if (verbose)
 					printf("%s => %s: dir, ignored\n",
 						path_buf, mapped_path);
 				continue;
@@ -780,20 +702,20 @@ static int cmd_verify_pathlist_mappings(const command_table_t *cmdp,
 		if (destination_prefix_cmp_result) {
 			if (require_both) {
 				result |= 2;
-				if (opts->opt_verbose)
+				if (verbose)
 					printf("%s => %s%s: NOT OK (Require both)\n",
 						path_buf, mapped_path,
 						(readonly_flag ? " (readonly)" : ""));
 			} else {
 				result |= 1;
-				if (opts->opt_verbose)
+				if (verbose)
 					printf("%s => %s%s: NOT OK\n",
 						path_buf, mapped_path,
 						(readonly_flag ? " (readonly)" : ""));
 			}
 		} else {
 			/* mapped OK. */
-			if (opts->opt_verbose)
+			if (verbose)
 				printf("%s => %s%s: Ok\n",
 					path_buf, mapped_path,
 					(readonly_flag ? " (readonly)" : ""));
@@ -802,333 +724,169 @@ static int cmd_verify_pathlist_mappings(const command_table_t *cmdp,
 	return (result);
 }
 
-static int cmd_log_error(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
+static void command_log(char **argv, int loglevel)
 {
-	(void)cmdp;
-	(void)cmd_argc;
-	(void)opts;
-	SB_LOG(SB_LOGLEVEL_ERROR, "%s", cmd_argv[1]);
-	return(0);
+	SB_LOG(loglevel, "%s", argv[0]);
 }
 
-static int cmd_log_warning(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
+static void command_show_libraryinterface(void)
 {
-	(void)cmdp;
-	(void)cmd_argc;
-	(void)opts;
-	SB_LOG(SB_LOGLEVEL_WARNING, "%s", cmd_argv[1]);
-	return(0);
-}
-
-static int cmd_libraryinterface(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	(void)cmd_argc;
-	(void)cmd_argv;
-	(void)opts;
 	printf("%s\n", call_sb2__lua_c_interface_version__());
-	return(0);
 }
-
-static int cmd_path(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	(void)cmd_argc;
-	command_show_path(opts->binary_name, opts->function_name, 
-		0/*verbose output*/, cmd_argv + 1);
-	return(0);
-}
-
-static int cmd_which(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	(void)cmd_argc;
-	command_show_path(opts->binary_name, opts->function_name, 
-		1/*show only dest.path*/, cmd_argv + 1);
-	return(0);
-}
-
-static int cmd_exec(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	command_show_exec(opts,
-			cmd_argc - 1, cmd_argv + 1,
-			opts->opt_verbose,
-			print_exec, NULL);
-	return(0);
-}
-
-static int cmd_exec_cmdline(const command_table_t *cmdp, const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	command_show_exec(opts,
-			cmd_argc - 1, cmd_argv + 1,
-			0/*verbose*/,
-			print_exec_cmdline, NULL);
-	return(0);
-}
-
-static int cmd_qemu_debug_exec(const command_table_t *cmdp,
-			const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	command_show_exec(opts,
-			cmd_argc - 1, cmd_argv + 1,
-			opts->opt_verbose,
-			print_qemu_debug_exec, (void*)opts->debug_port);
-	return(0);
-}
-
-static int cmd_acct_on(const command_table_t *cmdp,
-			const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	(void)cmd_argc;
-	(void)opts;
-	if (acct(cmd_argv[1]) < 0) {
-		perror(opts->progname);
-		return(1);
-	}
-	return(0);
-}
-
-static int cmd_acct_off(const command_table_t *cmdp,
-			const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	(void)cmdp;
-	(void)cmd_argc;
-	(void)opts;
-	(void)cmd_argv;
-	if (acct(NULL) < 0) {
-		perror(opts->progname);
-		return(1);
-	}
-	return(0);
-}
-
-static int cmd_start(const command_table_t *cmdp,
-			const cmdline_options_t *opts,
-			int cmd_argc, char *cmd_argv[])
-{
-	int	i;
-
-	(void)cmdp;
-	(void)opts;
-	if (opts->opt_verbose) {
-		for (i = 0; i < cmd_argc-1; i++)
-			printf("%d: '%s'\n", i, cmd_argv[i+1]);
-	}
-	execvp(cmd_argv[1], cmd_argv+1);
-	return(0);
-}
-
-const command_table_t commands[] = {
-	/* name	 must_have_session	min_argc,max_argc, fn
-	 * helptext */
-	{ "acct_on",	0,		2,	2,	cmd_acct_on,
-	  "\tacct_on file           activate process accounting, see man acct(2)\n"
-	  "\t                       (requires superuser rights)"},
-	{ "acct_off",	0,		1,	1,	cmd_acct_off,
-	  "\tacct_off               deactivate process accounting"},
-	{ "binarytype",	1,		1,	9999,	cmd_binarytype,
-	  "\tbinarytype realpath    detect & show type of program at\n"
-	  "\t                       'realpath' (already mapped path)"},
-	{ "exec",	1,		1,	9999,	cmd_exec,
-	  "\texec file [argv1] [argv2]..\n"
-	  "\t                       show execve() modifications"},
-	{ "exec-cmdline", 1,		1,	9999,	cmd_exec_cmdline,
-	    "\texec-cmdline file [argv1] [argv2]..\n"
-	    "\t                       show execve() modifications on\n"
-	    "\t                       a single line (does not show full\n"
-	    "\t                       details)"},
-	{ "libraryinterface",1,		1,	1,	cmd_libraryinterface,
-	  "\tlibraryinterface       show preload library interface version\n"
-	  "\t                       (the Lua <-> C code interface)"},
-	{ "log-error",	1,		2,	2,	cmd_log_error,
-	  "\tlog-error 'message'    add an error message to the log"},
-	{ "log-warning",	1,		2,	2,	cmd_log_warning,
-	  "\tlog-warning 'message'  add a warning message to the log"},
-	{ "net",	1,		2,	9999,	cmd_net,
-	  "\tnet subcmd [argvs]..\n"
-	  "\t                       show networking info"},
-	{ "path", 	1,		1,	9999,	cmd_path,
-	  "\tpath [path1] [path2].. show mappings of pathnames"},
-	{ "pwd", 	1,		1,	1,	cmd_pwd,
-	  "\tpwd                    show virtual current working directory"},
-	{ "qemu-debug-exec", 1,		1,	9999,	cmd_qemu_debug_exec,
-	    "\tqemu-debug-exec file argv0 [argv1] [argv2]..\n"
-	    "\t                       show command line that can be used to\n"
-	    "\t                       start target binary under qemu\n"
-	    "\t                       gdbserver"},
-	{ "realcwd", 	1,		1,	1,	cmd_realcwd,
-	  "\trealcwd                show real current working directory"},
-	{ "realpath", 	0,		2,	2,	cmd_realpath,
-	  "\trealpath path          call realpath(path) and print the result"},
-	{ "reverse", 	1,		2,	9999,	cmd_reverse,
-	  "\treverse path [path2]   reverse-map path(s) and print the results"},
-	{ "start", 	1,		2,	9999,	cmd_start,
-	  "\tstart command [params] Execute 'command' (this is used internally\n"
-	  "\t                       during session startup)"},
-	{ "var",	1,		2,	2,	cmd_var,
-	  "\tvar variablename       show value of a string variable"},
-	{ "verify-pathlist-mappings",1,	2,	9999,	cmd_verify_pathlist_mappings,
-	  "\tverify-pathlist-mappings required-prefix [ignorelist]\n"
-	  "\t                       read list of paths from stdin and\n"
-	  "\t                       check that all paths will be mapped to\n"
-	  "\t                       required prefix"},
-	{ "which", 	1,		1,	9999,	cmd_which,
-	  "\twhich [path1] [path2].. (like the 'path' command, but less verbose)"},
-	{ NULL, 0, 0, 0, NULL, NULL } /* End of command table */
-};
 
 int main(int argc, char *argv[])
 {
 	int	opt;
+	char	*progname = argv[0];
+	char	*function_name = "ANYFUNCTION";
+	char	*binary_name = "ANYBINARY";
+	int	ignore_directories = 0;
+	int	verbose = 0;
 	int	report_time = 0;
 	struct timeval	start_time, stop_time;
 	int	ret = 0;
+	char	*pre_cmd_file = NULL;
+	char	*post_cmd_file = NULL;
+	char	**additional_env = NULL;
+	char	*debug_port = "1234";
 	char	*active_exec_policy_name = NULL;
-	cmdline_options_t	opts;
-	const	command_table_t	*cmdp;
-	int	subcmd_argc = 0;
-	char	**subcmd_argv = NULL;
 	
-	memset(&opts, 0, sizeof(opts));
-	opts.progname = argv[0];
-	opts.function_name = "ANYFUNCTION";
-	opts.function_name_set = 0;
-	opts.binary_name = "ANYBINARY";
-	opts.debug_port = "1234";
-
 	while ((opt = getopt(argc, argv, "hm:f:b:Dvtg:x:X:E:p:")) != -1) {
 		switch (opt) {
-		case 'h': usage_exit(opts.progname, NULL, 0, commands); break;
+		case 'h': usage_exit(progname, NULL, 0); break;
 		case 'm':
 			fprintf(stderr,
 				 "%s: Warning: option -m is obsolete\n",
 				argv[0]);
 			break;
-		case 'f': opts.function_name = optarg;
-			  opts.function_name_set = 1; break;
-		case 'b': opts.binary_name = optarg; break;
+		case 'f': function_name = optarg; break;
+		case 'b': binary_name = optarg; break;
 		case 'p': active_exec_policy_name = optarg; break;
-		case 'D': opts.opt_ignore_directories = 1; break;
-		case 'v': opts.opt_verbose = 1; break;
+		case 'D': ignore_directories = 1; break;
+		case 'v': verbose = 1; break;
 		case 't': report_time = 1; break;
-		case 'g': opts.debug_port = optarg; break;
-#if 0
-		/* -x and -X were used previously, but were removed
-		 * when Lua was removed from libsb2. Think twice
-		 * before recycling these options.
-		*/
+		case 'g': debug_port = optarg; break;
 		case 'x': pre_cmd_file = optarg; break;
 		case 'X': post_cmd_file = optarg; break;
-#endif
 		case 'E':
 			if (!strchr(optarg,'=')) {
 				fprintf(stderr,
 					 "%s: Error: parameter error in -E\n",
 					argv[0]);
-			} else if (!opts.additional_env) {
-				opts.additional_env = calloc(2, sizeof(char*));
-				opts.additional_env[0] = strdup(optarg);
+			} else if (!additional_env) {
+				additional_env = calloc(2, sizeof(char*));
+				additional_env[0] = strdup(optarg);
 			} else {
-				int n_elem = elem_count(opts.additional_env);
-				opts.additional_env = realloc(opts.additional_env,
+				int n_elem = elem_count(additional_env);
+				additional_env = realloc(additional_env,
 					(n_elem+2)*sizeof(char*));
-				opts.additional_env[n_elem] = strdup(optarg);
-				opts.additional_env[n_elem+1] = NULL;
+				additional_env[n_elem] = strdup(optarg);
+				additional_env[n_elem+1] = NULL;
 			}
 			break;
-		default: usage_exit(opts.progname, "Illegal option", 1, commands); break;
+		default: usage_exit(progname, "Illegal option", 1); break;
 		}
+	}
+
+	/* disable mapping; dlopen must run without mapping. */
+	setenv("SBOX_DISABLE_MAPPING", "1", 1/*overwrite*/);
+	libsb2_handle = dlopen(LIBSB2_SONAME, RTLD_NOW);
+	if (libsb2_handle) {
+
+		if (verbose) {
+			printf("%s: libsb2 FOUND\n", progname);
+		}
+		int *loglevelptr = NULL;
+		loglevelptr = dlsym(libsb2_handle, "sb_loglevel__");
+		if (loglevelptr) {
+			sb_loglevel__ = *loglevelptr;
+		} else {
+			sb_loglevel__ = 0;
+		}
+	} else {
+		if (verbose) {
+			printf("%s: libsb2 was not found\n", progname);
+		}
+		sb_loglevel__ = 0;
+	}
+	/* enable mapping */
+	unsetenv("SBOX_DISABLE_MAPPING");
+
+	if (!libsb2_handle) 
+		usage_exit(progname, "This command can only be used "
+			"inside a session (e.g. 'sb2 sb2-show ...')", 1);
+
+	if (active_exec_policy_name) {
+		call_sb2__set_active_exec_policy_name__(active_exec_policy_name);
 	}
 
 	/* check parameters */
 	if (optind >= argc) 
-		usage_exit(opts.progname, "No command", 1, commands);
+		usage_exit(progname, "Wrong number of parameters", 1);
 
-	/* find the command. */
-	cmdp = commands;
-	while (cmdp->cmd_name) {
-		if (!strcmp(argv[optind], cmdp->cmd_name)) {
-			subcmd_argc = argc - (optind);
-			subcmd_argv = argv + optind;
-
-			if (subcmd_argc < cmdp->cmd_min_argc) {
-				usage_exit(opts.progname,
-					"Not enough parameters", 1, commands);
-			}
-			if (subcmd_argc > cmdp->cmd_max_argc) {
-				usage_exit(opts.progname,
-					"Too many parameters", 1, commands);
-			}
-			break;
-		}
-		cmdp++;
-	}
-	if (!cmdp->cmd_name) {
-		usage_exit(opts.progname, "Unknown command", 1, commands);
-	}
-	/* cmdp is valid now */
-
-	if (cmdp->cmd_must_have_session) {
-		/* disable mapping; dlopen must run without mapping. */
-		setenv("SBOX_DISABLE_MAPPING", "1", 1/*overwrite*/);
-		libsb2_handle = dlopen(LIBSB2_SONAME, RTLD_NOW);
-		if (libsb2_handle) {
-
-			if (opts.opt_verbose) {
-				printf("%s: libsb2 FOUND\n", opts.progname);
-			}
-			int *loglevelptr = NULL;
-			loglevelptr = dlsym(libsb2_handle, "sb_loglevel__");
-			if (loglevelptr) {
-				sb_loglevel__ = *loglevelptr;
-			} else {
-				sb_loglevel__ = 0;
-			}
-		} else {
-			if (opts.opt_verbose) {
-				printf("%s: libsb2 was not found\n", opts.progname);
-			}
-			sb_loglevel__ = 0;
-		}
-		/* enable mapping */
-		unsetenv("SBOX_DISABLE_MAPPING");
-
-		if (!libsb2_handle) 
-			usage_exit(opts.progname, "This command can only be used "
-				"inside a session (e.g. 'sb2 sb2-show ...')", 1, commands);
-	}
-
-	if (libsb2_handle && active_exec_policy_name) {
-		call_sb2__set_active_exec_policy_name__(active_exec_policy_name);
-	}
+	/* Execute the "pre-command" file before starting the clock (if both
+	 * -x and -t options were used)
+	*/
+	if (pre_cmd_file)
+		call_sb2__load_and_execute_lua_file__(pre_cmd_file);
 
 	if (report_time) {
 		if (gettimeofday(&start_time, (struct timezone *)NULL) < 0) {
-			fprintf(stderr, "%s: Failed to get time\n", opts.progname);
+			fprintf(stderr, "%s: Failed to get time\n", progname);
 			report_time = 0;
 		}
 	}
 
-	/* execute the command */
-	ret = cmdp->cmd_fn(cmdp, &opts, subcmd_argc, subcmd_argv);
+	/* params ok, go and perform the action */
+	if (!strcmp(argv[optind], "libraryinterface")) {
+		command_show_libraryinterface();
+	} else if (!strcmp(argv[optind], "path")) {
+		command_show_path(binary_name, function_name, 
+			0/*verbose output*/, argv + optind + 1);
+	} else if (!strcmp(argv[optind], "which")) {
+		command_show_path(binary_name, function_name, 
+			1/*show only dest.path*/, argv + optind + 1);
+	} else if (!strcmp(argv[optind], "realcwd")) {
+		command_show_realcwd(binary_name, function_name);
+	} else if (!strcmp(argv[optind], "pwd")) {
+		command_show_pwd(progname);
+	} else if (!strcmp(argv[optind], "exec")) {
+		command_show_exec(binary_name, function_name,
+			progname, argc - (optind+1), argv + optind + 1,
+			additional_env, verbose,
+			print_exec, NULL);
+	} else if (!strcmp(argv[optind], "exec-cmdline")) {
+		command_show_exec(binary_name, function_name,
+			progname, argc - (optind+1), argv + optind + 1,
+			additional_env, 0/*verbose*/,
+			print_exec_cmdline, NULL);
+	} else if (!strcmp(argv[optind], "binarytype")) {
+		command_show_binarytype(binary_name, function_name,
+			verbose, argv + optind + 1);
+	} else if (!strcmp(argv[optind], "qemu-debug-exec")) {
+		command_show_exec(binary_name, function_name,
+			progname, argc - (optind+1), argv + optind + 1,
+			additional_env, verbose,
+			print_qemu_debug_exec, debug_port);
+	} else if (!strcmp(argv[optind], "log-error")) {
+		command_log(argv + optind + 1, SB_LOGLEVEL_ERROR);
+	} else if (!strcmp(argv[optind], "log-warning")) {
+		command_log(argv + optind + 1, SB_LOGLEVEL_WARNING);
+	} else if (!strcmp(argv[optind], "verify-pathlist-mappings")) {
+		ret = command_verify_pathlist_mappings(binary_name,
+			function_name, ignore_directories,
+			verbose, progname, argv + optind + 1);
+	} else if (!strcmp(argv[optind], "var")) {
+		ret = command_show_variable(verbose, progname, argv[optind+1]);
+	} else if (!strcmp(argv[optind], "execluafile")) {
+		call_sb2__load_and_execute_lua_file__(argv[optind+1]);
+	} else {
+		usage_exit(progname, "Unknown command", 1);
+	}
 
 	if (report_time) {
 		if (gettimeofday(&stop_time, (struct timezone *)NULL) < 0) {
-			fprintf(stderr, "%s: Failed to get time\n", opts.progname);
+			fprintf(stderr, "%s: Failed to get time\n", progname);
 		} else {
 			long secs;
 			long usecs;
@@ -1142,6 +900,12 @@ int main(int argc, char *argv[])
 			printf("TIME: %ld.%06ld\n", secs, usecs);
 		}
 	}
+
+	/* Execute the "prost-command" file after the clock has been stopped
+	 * (if both -X and -t options were used)
+	*/
+	if (post_cmd_file)
+		call_sb2__load_and_execute_lua_file__(post_cmd_file);
 
 	return(ret);
 }
