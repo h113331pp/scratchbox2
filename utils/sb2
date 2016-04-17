@@ -48,7 +48,6 @@ Options:
                  a mode-specific string)
     -R           use simulated root permissions (currently activates
                  "fakeroot" for this functionality)
-    -f args      additional fakeroot arguments
     -S file      Write session information to "file" (see option -J)
     -J file      Don't create a new session; join an existing one (see -S) 
     -D file      delete an old session (see -S). Warning: this does not
@@ -63,9 +62,6 @@ Options:
                  target_root (rootstrap).
     -T dir       use "dir" as tools_root (overriding the value from config file)
     -u           Disable automatic configuration upgrade.
-    -g           Create a new session with setsid(); useful when executing
-                 commands in the background
-    -G file      Append process group number to "file"
 
 Examples:
     sb2 ./configure
@@ -127,7 +123,6 @@ function create_reverse_rules()
 	for ammf in $SBOX_SESSION_DIR/rules/*.lua; do
 		amm_base=`basename $ammf .lua`
 
-		__SB2_BINARYNAME="sb2:CreatingReverseRules" \
 		SBOX_SESSION_MODE=$amm_base sb2-monitor \
 			-L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
 			execluafile \
@@ -147,12 +142,10 @@ function create_reverse_rules()
 #   source tree)
 function locate_target_nsswitch_conf()
 {
-	__SB2_BINARYNAME="sb2:LocatingNsswitchConf" \
 	sb2-monitor \
 		-L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
 		which /etc/nsswitch.conf \
 		>$SBOX_SESSION_DIR/path_to_nsswitch.conf
-	__SB2_BINARYNAME="sb2:LocatingNscdSocket" \
 	sb2-monitor \
 		-L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
 		which /var/run/nscd/socket \
@@ -174,7 +167,6 @@ function locate_target_nsswitch_conf()
 function create_argvmods_rules()
 {
 	/bin/mkdir -p $SBOX_SESSION_DIR/argvmods
-	__SB2_BINARYNAME="sb2:CreatingArgvmodsMiscRules" \
 	SBOX_ARGVMODS_SOURCE_FILE="argvenvp_misc.lua" sb2-monitor \
 	    -L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
 	    execluafile \
@@ -183,7 +175,6 @@ function create_argvmods_rules()
 	if [ $? != 0 ]; then
 		exit_error "Failed to create 'argvmods_misc' rules"
 	fi
-	__SB2_BINARYNAME="sb2:CreatingArgvmodsGccRules" \
 	SBOX_ARGVMODS_SOURCE_FILE="argvenvp_gcc.lua" sb2-monitor \
 	    -L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
 	    execluafile \
@@ -204,7 +195,6 @@ function create_argvmods_usr_bin_rules()
 		amm_base=`basename $ammf .lua`
 
 		SBOX_ARGVMODS_USR_BIN_DEFAULT_RULE="$default_rule" \
-		__SB2_BINARYNAME="sb2:CreatingArgvmodsUsrBinRules" \
 		SBOX_SESSION_MODE=$amm_base sb2-monitor \
 			-L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
 			execluafile \
@@ -278,7 +268,7 @@ function load_configuration()
 	
 	# check if we need to upgrade configuration:
 	if [ -z "$OPT_DONT_UPGRADE_CONFIGURATION" ]; then
-		if [ ! -f ~/.scratchbox2/$SBOX_TARGET/sb2.config.d/config-stamp.19 ]; then
+		if [ ! -f ~/.scratchbox2/$SBOX_TARGET/sb2.config.d/config-stamp.18 ]; then
 			$SBOX_DIR/share/scratchbox2/scripts/sb2-upgrade-config \
 				$SBOX_TARGET
 			if [ $? != 0 ]; then
@@ -294,22 +284,10 @@ function load_configuration()
 		. $HOME/.scratchbox2/$TARGET/sb2.config.d/gcc.config.sh
 	fi
 	# attempt to make SBOX_CPUTRANSPARENCY_METHOD path absolute
-	# and remove symlinks from it
-	SBOX_CPUTRANSPARENCY_CMD=""
-	SBOX_CPUTRANSPARENCY_ARGS=""
 	if [ -n "$SBOX_CPUTRANSPARENCY_METHOD" ]; then
-		# $SBOX_CPUTRANSPARENCY_METHOD may contain options.
-		set $SBOX_CPUTRANSPARENCY_METHOD
-		SBOX_CPUTRANSPARENCY_CMD="$1"
-		shift
-		SBOX_CPUTRANSPARENCY_ARGS="$*"
-		_cputransp=$(which $SBOX_CPUTRANSPARENCY_CMD)
-		if [ -z "$_cputransp" ]; then
-			echo "Fatal: CPU transparency method not found ($SBOX_CPUTRANSPARENCY_METHOD)"
-			exit 1
-		fi
-		if [ -e "$_cputransp" ]; then
-			SBOX_CPUTRANSPARENCY_CMD=$(realpath $_cputransp)
+		_cputransp=$(which $SBOX_CPUTRANSPARENCY_METHOD)
+		if [ -e $_cputransp ]; then
+			SBOX_CPUTRANSPARENCY_METHOD=$_cputransp
 		fi
 	fi
 
@@ -530,8 +508,6 @@ sbox_temp_dpkg_admin_dir="$SB2_TEMP_DPKG_ADMIN_DIR"
 
 sbox_cpu="$SBOX_CPU"
 sbox_cputransparency_method="$SBOX_CPUTRANSPARENCY_METHOD"
-sbox_cputransparency_cmd="$SBOX_CPUTRANSPARENCY_CMD"
-sbox_cputransparency_args="$SBOX_CPUTRANSPARENCY_ARGS"
 sbox_sbrsh_config="$SBRSH_CONFIG"
 
 sbox_host_gcc_prefix_list="$SBOX_HOST_GCC_PREFIX_LIST"
@@ -664,24 +640,20 @@ function write_ld_library_path_replacement_to_exec_config()
 function check_qemu_features()
 {
 	qemu_path=$1
-	shift
-	qemu_options=$*
 
 	# Use "sb2-show" to find out how qemu should be executed
 	# (qemu might be under tools_root => it might need to
 	# use ld.so and libraries from tools)
-	__SB2_BINARYNAME="sb2:CheckingQemuExec" \
 	sb2-monitor \
 		-L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
-		-- exec-cmdline \
-		$qemu_path $qemu_options \
+		exec-cmdline \
+		$qemu_path \
 		>$SBOX_SESSION_DIR/qemu_cmdline
 	if [ $? != 0 ]; then
 		exit_error "Failed to find out how $qemu_path should be started"
 	fi
 
 	# run qemu -h
-	__SB2_BINARYNAME="sb2:CheckingQemuFeatures" \
 	sb2-monitor \
 		-L $SBOX_LIBSB2 -- \
 		`cat $SBOX_SESSION_DIR/qemu_cmdline` -h \
@@ -727,12 +699,6 @@ function check_qemu_features()
 			else
 				qemu_env="$qemu_env,'$qemuarg'"
 			fi ;;
-		[\'\"]*[\'\"])
-			if [ -z "$qemu_argv" ]; then
-				qemu_argv="$qemuarg"
-			else
-				qemu_argv="$qemu_argv,$qemuarg"
-			fi ;;
 		*)
 			if [ -z "$qemu_argv" ]; then
 				qemu_argv="'$qemuarg'"
@@ -744,7 +710,7 @@ function check_qemu_features()
 	if [ -n "$qemu_argv" ]; then
 		conf_cputransparency_qemu_argv="{$qemu_argv}"
 	fi
-	if [ -n "$qemu_env" ]; then
+	if [ -n "$qemu_argv" ]; then
 		conf_cputransparency_qemu_env="{$qemu_env}"
 	fi
 }
@@ -782,7 +748,7 @@ function check_ld_so_features()
 # Locate shell and set the initial binary name for the mapping engine
 function locate_shell()
 {
-	__SB2_BINARYNAME="sb2:TestingBash" sb2-monitor \
+	sb2-monitor \
 		-L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
 		which /bin/bash \
 		>$SBOX_SESSION_DIR/path_to_shell.conf
@@ -792,7 +758,7 @@ function locate_shell()
 		__SB2_BINARYNAME="bash"
 		SHELL=/bin/bash
 	else
-		__SB2_BINARYNAME="sb2:LocatingShell" sb2-monitor \
+		sb2-monitor \
 			-L $SBOX_LIBSB2 -- $SBOX_DIR/bin/sb2-show \
 			which /bin/sh \
 			>$SBOX_SESSION_DIR/path_to_shell.conf
@@ -801,25 +767,6 @@ function locate_shell()
 		SHELL=/bin/sh
 	fi
 	export __SB2_BINARYNAME
-}
-
-# Try to determine dynamic linker
-# Choose x86_64 ld.so if architecture seems correct and linker exists.
-#
-# NOTE:
-#   Debian seems to have scratchbox2 packages for ia64 and powerpc,
-#   however since I don't have access to these arches I'm leaving "linker chooser" unfixed 
-#   there (ia64 has /lib/ld-linux-ia64.so, powerpc has /lib/ld.so.1).
-function guess_ld_so()
-{
-	local prefix="$1"
-
-	if [ "`uname -m`" = 'x86_64' -a -r "$prefix/lib/ld-linux-x86-64.so.2" ]
-	then
-		printf "$prefix/lib/ld-linux-x86-64.so.2"
-	else
-		printf "$prefix/lib/ld-linux.so.2"		
-	fi
 }
 
 function write_libsb2_and_ld_so_state_to_exec_config()
@@ -867,7 +814,7 @@ function write_libsb2_and_ld_so_state_to_exec_config()
 	# check the dynamic linker:
 
 	# First try if the default linker can be used
-	ld_so_candidate="`guess_ld_so $rootdir`"
+	ld_so_candidate=$rootdir/lib/ld-linux.so.2
 	if [ -f $ld_so_candidate ]; then
 		check_ld_so_features $rootdir $ld_so_candidate
 		if [ "$ld_so_argv_flag_works" != "true" ]; then
@@ -911,7 +858,7 @@ function write_libsb2_and_ld_so_state_to_exec_config()
 		# points to the actual dynamic linker since we don't
 		# know its version.
 		#
-		ld_so_candidate2="`guess_ld_so $libsb2_dirname`"
+		ld_so_candidate2="$libsb2_dirname/ld-linux.so.2"
 		if [ -L $ld_so_candidate2 ]; then
 			ld_so_candidate2=`/bin/readlink -f $ld_so_candidate2`
 			# check also that it has --argv0 support
@@ -1026,7 +973,7 @@ END
 	library_interface=`LD_LIBRARY_PATH=$SBOX_DIR/lib/libsb2:$LD_LIBRARY_PATH sb2-show libraryinterface`
 
 	# 1. Exec settings for tools
-	if [ "$SBOX_TOOLS_ROOT" != "/" ]; then
+	if [ "$SBOX_TOOLS_ROOT" != "" ]; then
 		tools_basename=`basename $SBOX_TOOLS_ROOT`
 		write_ld_library_path_replacement_to_exec_config \
 			$SBOX_TOOLS_ROOT conf_tools_ld_so_library_path \
@@ -1143,7 +1090,7 @@ function add_cputransparency_settings_to_exec_config_file()
 	conf_cputransparency_qemu_argv="nil"
 	conf_cputransparency_qemu_env="nil"
 
-	case "$SBOX_CPUTRANSPARENCY_CMD" in	
+	case "$SBOX_CPUTRANSPARENCY_METHOD" in	
 	*qemu*)	check_qemu_features $SBOX_CPUTRANSPARENCY_METHOD
 		;;
 	esac
@@ -1242,8 +1189,6 @@ function initialize_new_sb2_session()
 		exit_error "Failed to create directory for session"
 	fi
 	mkdir $SBOX_SESSION_DIR/tmp
-	mkdir $SBOX_SESSION_DIR/var
-	mkdir $SBOX_SESSION_DIR/var/tmp
 	mkdir $SBOX_SESSION_DIR/proc
 	mkdir $SBOX_SESSION_DIR/rules
 	mkdir $SBOX_SESSION_DIR/rev_rules
@@ -1358,6 +1303,7 @@ function write_configfiles_and_rules_for_new_session()
 	create_gcc_conf_file_for_session
 
 	# Copy intial contents of /var/run from the rootstrap:
+	mkdir $SBOX_SESSION_DIR/var
 	if [ -d $SBOX_TARGET_ROOT/var ]; then
 		(cd $SBOX_TARGET_ROOT/var; find run -depth -print |
 			cpio -pamd $SBOX_SESSION_DIR/var 2>/dev/null)
@@ -1392,9 +1338,8 @@ OPT_CLONE_TARGET_ROOT_FROM=""
 OPT_SESSION_DIR=""
 SBOX_FORCED_TOOLS_ROOT=""
 OPT_DONT_UPGRADE_CONFIGURATION=""
-OPTS_FOR_SB2_MONITOR=""
 
-while getopts vdht:em:s:L:Q:M:ZrRS:J:D:W:O:cC:T:uf:gG: foo
+while getopts vdht:em:s:L:Q:M:ZrRS:J:D:W:O:cC:T:u foo
 do
 	case $foo in
 	(v) version; exit 0;;
@@ -1421,9 +1366,6 @@ do
 	(C) OPT_CLONE_TARGET_ROOT_FROM=$OPTARG ;;
 	(T) SBOX_FORCED_TOOLS_ROOT=$OPTARG ;;
 	(u) OPT_DONT_UPGRADE_CONFIGURATION="y" ;;
-	(f) SBOX_FAKEROOT_ARGS=$OPTARG ;;
-	(g) OPTS_FOR_SB2_MONITOR="$OPTS_FOR_SB2_MONITOR -g" ;;
-	(G) OPTS_FOR_SB2_MONITOR="$OPTS_FOR_SB2_MONITOR -G $OPTARG" ;;
 	(*) usage ;;
 	esac
 done
@@ -1492,7 +1434,7 @@ fi
 SBOX_FAKEROOT_PREFIX=""
 if [ -n "$SBOX_SESSION_PERM" ]; then
 	export SBOX_SESSION_PERM
-	SBOX_FAKEROOT_PREFIX="fakeroot $SBOX_FAKEROOT_ARGS"
+	SBOX_FAKEROOT_PREFIX="fakeroot"
 	# Preload both; fakeroot and libsb2
 	SBOX_LD_PRELOAD="$HOST_LD_PRELOAD_FAKEROOT:$SBOX_LIBSB2"
 else
@@ -1654,14 +1596,14 @@ if [ $# -gt 0 -o "$STDIN" = true ]; then
 	binary="$1"
 	shift 1
 	args="$@"
-	exec $SBOX_FAKEROOT_PREFIX sb2-monitor $OPTS_FOR_SB2_MONITOR \
+	exec $SBOX_FAKEROOT_PREFIX sb2-monitor \
 		-L $SBOX_LIBSB2 \
 		-x $SBOX_DIR/share/scratchbox2/scripts/sb2-exitreport \
 		-e $SBOX_CONFIG_DIR/env_vars \
 		-- \
 		$SHELL -c "exec $SHELL -c '$binary $args'"
 else
-	exec $SBOX_FAKEROOT_PREFIX sb2-monitor $OPTS_FOR_SB2_MONITOR \
+	exec $SBOX_FAKEROOT_PREFIX sb2-monitor \
 		-L $SBOX_LIBSB2 \
 		-x $SBOX_DIR/share/scratchbox2/scripts/sb2-exitreport \
 		-e $SBOX_CONFIG_DIR/env_vars \

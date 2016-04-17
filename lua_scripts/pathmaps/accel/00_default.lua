@@ -11,7 +11,7 @@
 
 -- Rule file interface version, mandatory.
 --
-rule_file_interface_version = "25"
+rule_file_interface_version = "24"
 ----------------------------------
 
 tools = tools_root
@@ -235,11 +235,6 @@ test_first_usr_bin_default_is_bin__replace = {
 	{ replace_by = target_root.."/bin", readonly = true }
 }
 
-test_first_tools_default_is_orig_path = {
-	{ if_exists_then_map_to = tools, readonly = true },
-	{ use_orig_path = true, readonly = true},
-}
-
 test_usr_share_aclocal__replace = {
 	{ if_exists_then_replace_by = target_root.."/usr/share/aclocal", readonly = true },
 	{ if_exists_then_replace_by = tools.."/usr/share/aclocal", readonly = true },
@@ -256,14 +251,6 @@ perl_lib_test = {
 	{ map_to = target_root, readonly = true }
 }
 
--- /usr/bin/perl, /usr/bin/python and related tools should
--- be mapped to target_root, but there are two exceptions:
--- 1) perl and python scripts from tools_root need to get
---    the interpreter from tools_root, too
--- 2) if the program can not be found from target_root,
---    but is present in tools_root, it will be used from
---    tools. This produces a warnign, because it isn't always
---    safe to do so.
 perl_bin_test = {
 	{ if_redirect_ignore_is_active = "/usr/bin/perl",
 	  map_to = target_root, readonly = true },
@@ -274,10 +261,6 @@ perl_bin_test = {
 	  map_to = target_root, readonly = true },
 	{ if_active_exec_policy_is = "Tools-perl",
 	  map_to = tools, readonly = true },
-	{ if_exists_then_map_to = target_root, readonly = true },
-	{ if_exists_then_map_to = tools,
-	  log_level = "warning", log_message = "Mapped to tools_root",
-	  readonly = true },
 	{ map_to = target_root, readonly = true }
 }
 
@@ -291,10 +274,6 @@ python_bin_test = {
 	  map_to = target_root, readonly = true },
 	{ if_active_exec_policy_is = "Tools-python",
 	  map_to = tools, readonly = true },
-	{ if_exists_then_map_to = target_root, readonly = true },
-	{ if_exists_then_map_to = tools,
-	  log_level = "warning", log_message = "Mapped to tools_root",
-	  readonly = true },
 	{ map_to = target_root, readonly = true }
 }
 
@@ -404,7 +383,7 @@ devel_mode_rules_usr_bin = {
 		-- tools that need special processing:
 
 		{prefix = "/usr/bin/host-",
-		 actions = test_first_tools_default_is_orig_path},
+		 use_orig_path = true, readonly = true},
 
 		-- "localedef" *must* be used from the target, the version
 		-- which exists in tools_root appers to work but doesn't..
@@ -487,9 +466,14 @@ devel_mode_rules_usr = {
 		 actions = test_first_tools_default_is_target},
 
 		-- -----------------------------------------------
-		-- 100. DEFAULT for /usr/*:
-		{prefix = "/usr",
-		 actions = test_first_tools_default_is_target},
+		-- 100. DEFAULT RULES:
+		-- the root directory must not be mapped:
+
+		-- "standard" directories are mapped to tools_root,
+		-- but everything else defaults to the host system
+		-- (so that things like /mnt, /media and /opt are
+		-- used from the host)
+		{prefix = "/usr", map_to = tools, readonly = true},
 	}
 }
 
@@ -565,8 +549,6 @@ devel_mode_rules_var = {
 
 		{prefix = "/var/log", map_to = target_root,
 		 readonly = true},
-
-		{dir = "/var/tmp", map_to = session_dir},
 
 		-- default rules:
 		{dir = "/var",

@@ -7,7 +7,7 @@
 
 -- Rule file interface version, mandatory.
 --
-rule_file_interface_version = "25"
+rule_file_interface_version = "24"
 ----------------------------------
 
 tools = tools_root
@@ -44,11 +44,16 @@ simple_chain = {
 
 		-- -----------------------------------------------
 		-- 99. Other rules.
+		{prefix = "/usr/bin/dpkg-checkbuilddeps", map_to = tools},
+		{prefix = "/usr/bin/dpkg-shlibdeps", map_to = tools},
+		{prefix = "/usr/bin/g-ir-scanner", map_to = tools},
 		{prefix = "/usr/share/python", use_orig_path = true, readonly = true},
 		{prefix = "/usr/share/pyshared", use_orig_path = true, readonly = true},
 		{prefix = "/usr/lib/pymodules", use_orig_path = true, readonly = true},
 		{prefix = "/usr/lib/pyshared", use_orig_path = true, readonly = true},
 		{prefix = "/usr/lib/python", use_orig_path = true, readonly = true},
+		{prefix = "/usr/lib/gobject-introspection/giscanner", use_orig_path = true, readonly = true},
+		{prefix = "/usr/lib/gtk-2.0/2.10.0/loaders/", use_orig_path = true, readonly = true},
 		{prefix = "/usr/lib/perl", map_to = tools},
 		{prefix = "/usr/lib/gcc", map_to = tools},
 		{prefix = "/usr/lib/git-core", use_orig_path = true, readonly = true},
@@ -87,10 +92,11 @@ simple_chain = {
 
 qemu_chain = {
 	next_chain = nil,
-	binary = basename(sbox_cputransparency_cmd),
+	binary = basename(sbox_cputransparency_method),
 	rules = {
 		{prefix = "/usr/lib", map_to = target_root},
 		{prefix = "/usr/local/lib", map_to = target_root},
+		{prefix = "/usr/local/lib/qt", map_to = target_root},
 		{prefix = "/tmp", use_orig_path = true},
 		{prefix = "/dev", use_orig_path = true},
 		{dir = "/proc", custom_map_funct = sb2_procfs_mapper,

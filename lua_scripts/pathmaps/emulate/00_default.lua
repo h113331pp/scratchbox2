@@ -3,7 +3,7 @@
 
 -- Rule file interface version, mandatory.
 --
-rule_file_interface_version = "25"
+rule_file_interface_version = "24"
 ----------------------------------
 
 sb1_compat_dir = sbox_target_root .. "/scratchbox1-compat"
@@ -30,10 +30,8 @@ end
 -- string.match() is slow..
 if sbox_mode_specific_options == "use-global-tmp" then
 	tmp_dir_dest = "/tmp"
-	var_tmp_dir_dest = "/var/tmp"
 else
 	tmp_dir_dest = session_dir .. "/tmp"
-	var_tmp_dir_dest = session_dir .. "/var/tmp"
 end
 
 -- If the permission token exists and contains "root", target_root
@@ -75,7 +73,7 @@ mapall_chain = {
 
 		{path = conf_tools_ld_so, use_orig_path = true, readonly = true},
 
-		{path = sbox_cputransparency_cmd, use_orig_path = true,
+		{path = sbox_cputransparency_method, use_orig_path = true,
 		 readonly = true},
 
 		{path = "/usr/bin/sb2-show", use_orig_path = true,
@@ -155,7 +153,6 @@ mapall_chain = {
 
 		--
 		{prefix = "/var/run", map_to = session_dir},
-		{prefix = "/var/tmp", replace_by = var_tmp_dir_dest},
 
 		-- 
 		{prefix = "/tmp", replace_by = tmp_dir_dest},
@@ -221,11 +218,6 @@ local pwd_chain = {
 	rules = {
 		{path = "/", use_orig_path = true},
 	},
-}
-
--- do not try to remap files from this table at all
-override_nomap = {
-	os.getenv("SSH_AUTH_SOCK"),
 }
 
 export_chains = {
@@ -349,9 +341,6 @@ local exec_policy_tools = {
 
 	native_app_ld_library_path_prefix = emulate_mode_tools_ld_library_path_prefix,
 	native_app_ld_library_path_suffix = emulate_mode_tools_ld_library_path_suffix,
-
-	native_app_locale_path = conf_tools_locale_path,
-	native_app_gconv_path = conf_tools_gconv_path,
 
 	native_app_ld_preload_prefix = host_ld_preload..fakeroot_ld_preload,
 }

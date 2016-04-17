@@ -60,7 +60,7 @@ function write_gcc_config()
 
 	# Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real 
 	# value when the session is created.
-	SBOX_EXTRA_CROSS_LD_ARGS="-rpath-link @SBOX_TARGET_ROOT@/usr/lib:@SBOX_TARGET_ROOT@/lib"
+	SBOX_EXTRA_CROSS_LD_ARGS="-rpath-link @SBOX_TARGET_ROOT@/usr/lib/$MULTIARCH:@SBOX_TARGET_ROOT@/usr/lib:@SBOX_TARGET_ROOT@/lib/$MULTIARCH:@SBOX_TARGET_ROOT@/lib"
 	SBOX_CROSS_GCC_SUBST_PREFIX=$GCC_PREFIX
 
 	cat - > $HOME/.scratchbox2/$TARGET/sb2.config.d/gcc$gcc_version_id.config.sh <<EOF
@@ -262,6 +262,8 @@ if [ -z "$MACHINE_ARCH" ]; then
 	MACHINE_ARCH=$ARCH
 fi
 
+MULTIARCH=`dpkg-architecture -a$ARCH -qDEB_HOST_MULTIARCH`
+
 # Path where gcc searches for sub-tools (ld, as, cc1,..)
 SBOX_CROSS_GCC_PROGS_PATH=$($GCC -print-search-dirs|grep ^programs:|sed 's/programs: =//')
 
@@ -301,19 +303,17 @@ fi
 
 # Note: "sb2" script will replace "@SBOX_TARGET_ROOT@" by the real 
 # value when the session is created.
-SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib -L@SBOX_TARGET_ROOT@/lib"
+#SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib -L@SBOX_TARGET_ROOT@/lib"
+SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -L@SBOX_TARGET_ROOT@/usr/lib -L@SBOX_TARGET_ROOT@/usr/lib/$MULTIARCH -L@SBOX_TARGET_ROOT@/lib -L@SBOX_TARGET_ROOT@/lib/$MULTIARCH"
 
 # test if the cross compiler needs to be silenced about /usr/include
-# usage ("gcc -E -Wno-poison-system-directories" is not a reliable way for
-# testing this; instead check if ld has the related flag)
-txt=`$GCC_FULLPATH -Wl,--help | grep no-poison-system-directories`
-case "$txt" in
-	(*no-poison-system-directories*)	# option is available
-		SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -Wno-poison-system-directories"
-		;;
-	(*)					# not available.
-		;;
-esac
+# usage
+#echo "" | $GCC_FULLPATH -E - -Wno-poison-system-directories > /dev/null 2>&1
+echo "" | $GCC_FULLPATH -E -  > /dev/null 2>&1
+if [ $? = 0 ]; then
+	#SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS -Wno-poison-system-directories"
+	SBOX_EXTRA_CROSS_COMPILER_ARGS="$SBOX_EXTRA_CROSS_COMPILER_ARGS"
+fi
 
 ##### HOST_GCC_INC=$(echo "#include <stdio.h>" | gcc -M -E - | SBOX_DIR=$SBOX_DIR perl -e 'while(<STDIN>) { $foo{$1} = 1 if m/\/usr([^[:space:]]*\/include)/;}; foreach my $k (keys %foo) {print " -isystem $ENV{SBOX_DIR}/share/scratchbox2/host_usr$k"};')
 

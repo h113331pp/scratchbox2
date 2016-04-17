@@ -551,10 +551,10 @@ function sb_execve_postprocess_native_executable(rule, exec_policy,
 	return 1, mapped_file, filename, #argv, argv, #envp, envp
 end
 
-if string.match(sbox_cputransparency_cmd, "qemu") then
+if string.match(sbox_cputransparency_method, "qemu") then
 	cputransparency_method_is_qemu = true
 end
-if string.match(sbox_cputransparency_cmd, "sbrsh") then
+if string.match(sbox_cputransparency_method, "sbrsh") then
 	cputransparency_method_is_sbrsh = true
 end
 
@@ -706,8 +706,8 @@ function sb_execve_postprocess_cpu_transparency_executable(rule, exec_policy,
 		local new_filename
 
 		if conf_cputransparency_qemu_argv == nil then
-			table.insert(new_argv, sbox_cputransparency_cmd)
-			new_filename = sbox_cputransparency_cmd
+			table.insert(new_argv, sbox_cputransparency_method)
+			new_filename = sbox_cputransparency_method
 		else
 			for i = 1, table.maxn(conf_cputransparency_qemu_argv) do
 				table.insert(new_argv, conf_cputransparency_qemu_argv[i])
@@ -773,18 +773,6 @@ function sb_execve_postprocess_cpu_transparency_executable(rule, exec_policy,
 			-- this qemu (for example, prelinking won't work, etc)
 			new_envp = envp
 		end
-
-		hack_envp = { }
-		for i = 1, #new_envp do
-			if string.match(new_envp[i], "^GCONV_PATH=.*") or
-			   string.match(new_envp[i], "^NLSPATH=.*") or
-			   string.match(new_envp[i], "^LOCPATH=.*") then
-				-- skip
-			else
-				table.insert(hack_envp, new_envp[i])
-			end
-		end
-		new_envp, hack_envp = hack_envp, nil
 
 		-- libsb2 will replace LD_PRELOAD and LD_LIBRARY_PATH
 		-- env.vars, we don't need to worry about what the

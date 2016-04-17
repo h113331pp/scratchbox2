@@ -110,33 +110,6 @@ function get_active_exec_policy()
 	return active_exec_policy_ptr
 end
 
--- Override mapping rules from override_nomap table
---  Each entry from table override_nomap should specify path that shouldn't be remapped
---  Entries from this table will be searched before all other rules
-function override_export_chains()
-	if (not override_nomap) then
-		return export_chains
-	end
-
-	override_chain = {
-		next_chain = export_chains[1],
-		binary = nil,
-		rules = { },
-	}
-
-	for i, key in pairs(override_nomap) do
-		if (key) then
-			table.insert(override_chain.rules, {path = key, use_orig_path = true})
-		end
-	end
-
-	local new_chain = { override_chain, }
-	for i, key in pairs(export_chains) do
-		table.insert(new_chain, key)
-	end
-	return new_chain
-end
-
 -- Load mode-specific rules.
 -- A mode file must define three variables:
 --  1. rule_file_interface_version (string) is checked and must match,
@@ -167,16 +140,6 @@ function load_and_check_rules()
 	-- exec mapping code (argvenp.lua) and the
 	-- rule files:
 	--
-	-- Version 25:
-	-- - CPU Transparency is now defined by three variables:
-	--    - sbox_cputransparency_method is the complete string,
-	--      containing both the command and options. This is
-	--	defined by the '-c' option of sb2-init.
-	--    - sbox_cputransparency_cmd is path to the binary,
-	--    - sbox_cputransparency_args contains optional
-	--	arguments.
-	--   Previously only sbox_cputransparency_method was
-	--   available.
 	-- Version 24:
 	-- - Added support for gconv_path for native applications
 	-- Version 23:
@@ -212,10 +175,9 @@ function load_and_check_rules()
 	--   (previously only one was expected)
 	-- - variables "esc_tools_root" and "esc_target_root"
 	--   were removed
-	local current_rule_interface_version = "25"
+	local current_rule_interface_version = "24"
 
 	do_file(rule_file_path)
-	export_chains = override_export_chains()
 
 	-- fail and die if interface version is incorrect
 	if (rule_file_interface_version == nil) or 
@@ -351,19 +313,6 @@ function sbox_execute_replace_rule(path, replacement, rule_selector)
 	return ret
 end
 
-function rule_logging(rule, path)
-	if (rule.log_level) then
-		if (rule.log_message) then
-			sb.log(rule.log_level, string.format("%s (%s)",
-				rule.log_message, path))
-		else
-			-- default message = log path
-			sb.log(rule.log_level, string.format("path=(%s)", path))
-		end
-	end
-end
-
-
 -- returns exec_policy, path, flags
 function sbox_execute_conditional_actions(binary_name,
 		func_name, rp, path, rule_selector)
@@ -404,7 +353,6 @@ function sbox_execute_conditional_actions(binary_name,
 				if (action_candidate.exec_policy ~= nil) then
 					ret_exec_policy = action_candidate.exec_policy
 				end
-				rule_logging(action_candidate, path)
 				return ret_exec_policy, tmp_dest, ret_flags
 			end
 		elseif (action_candidate.if_active_exec_policy_is) then
@@ -416,7 +364,6 @@ function sbox_execute_conditional_actions(binary_name,
 						"selected by exec_policy %s",
 						ep.name))
 				end
-				rule_logging(action_candidate, path)
 				return sbox_execute_rule(binary_name,
 					func_name, rp, path,
 					rule_selector, action_candidate)
@@ -429,7 +376,6 @@ function sbox_execute_conditional_actions(binary_name,
 				if (debug_messages_enabled) then
 					sb.log("debug", "selected; redirect ignore is active")
 				end
-				rule_logging(action_candidate, path)
 				return sbox_execute_rule(binary_name,
 					func_name, rp, path,
 					rule_selector, action_candidate)
@@ -442,7 +388,6 @@ function sbox_execute_conditional_actions(binary_name,
 				if (debug_messages_enabled) then
 					sb.log("debug", "selected; redirect force is active")
 				end
-				rule_logging(action_candidate, path)
 				return sbox_execute_rule(binary_name,
 					func_name, rp, path,
 					rule_selector, action_candidate)
@@ -457,7 +402,6 @@ function sbox_execute_conditional_actions(binary_name,
 				if (debug_messages_enabled) then
 					sb.log("debug", "using default (unconditional) rule")
 				end
-				rule_logging(action_candidate, path)
 				return sbox_execute_rule(binary_name,
 					func_name, rp, path,
 					rule_selector, action_candidate)

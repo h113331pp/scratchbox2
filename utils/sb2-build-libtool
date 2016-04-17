@@ -24,7 +24,7 @@ TARGET="$sbox_target"
 set -e
 
 NAME=libtool
-VERSION=1.5.26
+VERSION=2.4
 
 DLHOST="http://ftp.funet.fi/pub/mirrors/ftp.gnu.org/pub/gnu/libtool"
 SOURCEFILE=$NAME-$VERSION.tar.gz
@@ -42,9 +42,8 @@ if [ ! -s $LOCAL_SOURCEFILE ]; then
 fi
 
 tar zxf $LOCAL_SOURCEFILE --strip-components=1
-
-
-./configure --prefix=$HOME/.scratchbox2/$TARGET --build=$(uname -m)-unknown-linux-gnu
+#./configure --host=$DEB_HOST_GNU_TYPE --prefix=$HOME/.scratchbox2/$TARGET --build=$(dpkg-architecture -qDEB_HOST_GNU_TYPE)
+./configure --prefix=$HOME/.scratchbox2/$TARGET --build=$(dpkg-architecture -qDEB_HOST_GNU_TYPE)
 
 # The system libtool script in Debian must be able to support
 # invoking gcc as cc (Debian specific)

@@ -26,9 +26,7 @@ gcc_compilers_with_version = {
 }
 
 gcc_linkers = {
-	"ld",
-	"ld.bfd",
-	"ld.gold"
+	"ld"
 }
 
 gcc_tools = {

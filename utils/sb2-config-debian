@@ -81,11 +81,6 @@ fi
 
 SBOX_CONFIG_DIR=~/.scratchbox2/$TARGET/sb2.config.d 
 
-# Handle recursive execution gracefully
-# (due to sb2-upgrade-config).
-[ "$SBOX_CONFIG_DEBIAN_UPGRADE" ] && exit 0
-export SBOX_CONFIG_DEBIAN_UPGRADE=yes
-
 if [ -f $SBOX_CONFIG_DIR/gcc.config.sh ]; then
 	# configured with a cross-compiler;
 	# get ARCH from the primary gcc config file
@@ -154,14 +149,13 @@ esac
 if [ ! -f $SBOX_CONFIG_DIR/debian.conf ]; then
 	# first time here (maybe upgrading the configuration);
 	# debian.conf does not exist. Create a temporary
-	# file, otherwise "sb2" will fail to run because
+	# file, otherwise "sb2 -u" will fail to run because
 	# this config file is mandatory now.
-	#
-	: >$SBOX_CONFIG_DIR/debian.conf
+	echo "# temporary debian.conf" >$SBOX_CONFIG_DIR/debian.conf
 fi
 
 # test if dpkg-architecture exists and can be executed
-DPKG_ARCHITECTURE_FULLPATH=$(sb2 -t $TARGET -m devel which dpkg-architecture)
+DPKG_ARCHITECTURE_FULLPATH=$(sb2 -u -t $TARGET -m devel which dpkg-architecture)
 if [ $? != 0 ]; then
 	# Can't locate or run dpkg-architecture. Set the values here.
 	# FIXME: I'm still not sure if these settings are sane,
