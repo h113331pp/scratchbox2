@@ -25,7 +25,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <bits/libc-lock.h>
 #if 0
 #include <sysdep-cancel.h>
 #endif
