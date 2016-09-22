@@ -29,20 +29,43 @@ simple_rules_usr = {
 		{binary_name = qemu_binary_name,
 		 prefix = "/usr/local/lib", map_to = target_root},
 
+		-- perl
+		{prefix = "/usr/share/perl5", use_orig_path = true, readonly = true},
+		{prefix = "/usr/share/perl/5.22", use_orig_path = true, readonly = true},
+		{prefix = "/etc/perl", use_orig_path = true, readonly = true},
+		{prefix = "/usr/local/lib/i386-linux-gnu/perl/5.22.1", use_orig_path = true, readonly = true},
+		{prefix = "/usr/local/share/perl/5.22.1", use_orig_path = true, readonly = true},
+		{prefix = "/usr/lib/i386-linux-gnu/perl5/5.22", use_orig_path = true, readonly = true},
+		{prefix = "/usr/lib/i386-linux-gnu/perl/5.22", use_orig_path = true, readonly = true},
+		{prefix = "/usr/local/lib/site_perl", use_orig_path = true, readonly = true},
+		{prefix = "/usr/lib/i386-linux-gnu/perl-base", use_orig_path = true, readonly = true},
+
+		-- python
+		{prefix = "/usr/share/python2.7", use_orig_path = true, readonly = true},
+		{prefix = "/usr/lib/python2.7", use_orig_path = true, readonly = true},
+		{prefix = "/usr/share/pyshared", use_orig_path = true, readonly = true},
+
+		-- pkg-config
+		{path = "/usr/bin/pkg-config", map_to = target_root},
+
+		-- for libraspberrypi0, libraspberrypi-doc, libraspberrypi-dev, libraspberrypi-bin
+		{prefix = "/opt/", map_to = target_root},
+
+		-- qt
+		{path = "/usr/bin/qmake", map_to = target_root},
+		{path = "/usr/bin/moc-qt4", map_to = target_root},
+		{path = "/usr/lib/arm-linux-gnueabihf/qt-default/qtchooser/default.conf", map_to = target_root},
+
 		-- Defaults:
 		{prefix = "/usr/lib/perl", map_to = tools},
 		{prefix = "/usr/lib/gcc", map_to = tools},
 		{prefix = "/usr/lib", map_to = target_root},
 		{prefix = "/usr/include", map_to = target_root},
 
-		{prefix = "/usr/share/python", use_orig_path = true, readonly = true},
-		{prefix = "/usr/share/pyshared", use_orig_path = true, readonly = true},
-		{prefix = "/usr/lib/pymodules", use_orig_path = true, readonly = true},
-		{prefix = "/usr/lib/pyshared", use_orig_path = true, readonly = true},
-		{prefix = "/usr/lib/python", use_orig_path = true, readonly = true},
 		{prefix = "/usr/lib/git-core", use_orig_path = true, readonly = true},
 
 		{dir = "/usr", map_to = tools},
+		{dir = "/var/lib/dpkg", map_to = target_root},
 }
 
 fs_mapping_rules = {
