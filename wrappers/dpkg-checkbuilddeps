@@ -347,6 +347,12 @@ function check_host_builddeps_by_real_tool()
 		"^dpkg-checkbuilddeps: Unmet build dependencies:" \
 			$x_missing_dep_file | \
 		sed 's/dpkg-checkbuilddeps: Unmet build dependencies: //')
+	if [ -z "$tools_missing_deps" ]; then
+		tools_missing_deps=$(egrep \
+		"^dpkg-checkbuilddeps: error: Unmet build dependencies:" \
+			$x_missing_dep_file | \
+		sed 's/dpkg-checkbuilddeps: error: Unmet build dependencies: //')
+	fi
 	rm $x_missing_dep_file
 
 	if [ -n "$tools_missing_deps" ]; then
@@ -391,6 +397,12 @@ function check_target_builddeps()
 		"^dpkg-checkbuilddeps: Unmet build dependencies:" \
 			$missing_dep_file | \
 		sed 's/dpkg-checkbuilddeps: Unmet build dependencies: //')
+	if [ -z "$missing_deps" ]; then
+		missing_deps=$(egrep \
+		"^dpkg-checkbuilddeps: error: Unmet build dependencies:" \
+			$missing_dep_file | \
+		sed 's/dpkg-checkbuilddeps: error: Unmet build dependencies: //')
+	fi
 	rm $missing_dep_file
 
 	if [ -n "$missing_deps" ]; then
