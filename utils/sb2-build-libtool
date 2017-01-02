@@ -24,7 +24,7 @@ TARGET="$sbox_target"
 set -e
 
 NAME=libtool
-VERSION=1.5.26
+VERSION=2.4.6
 
 DLHOST="http://ftp.funet.fi/pub/mirrors/ftp.gnu.org/pub/gnu/libtool"
 SOURCEFILE=$NAME-$VERSION.tar.gz
