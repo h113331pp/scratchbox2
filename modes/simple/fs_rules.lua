@@ -45,6 +45,9 @@ simple_rules_usr = {
 		{prefix = "/usr/lib/python2.7", use_orig_path = true, readonly = true},
 		{prefix = "/usr/share/pyshared", use_orig_path = true, readonly = true},
 
+		-- gdk-pixbuf-csource
+		{path = "/usr/bin/gdk-pixbuf-csource", map_to = target_root},
+
 		-- pkg-config
 		{path = "/usr/bin/pkg-config", map_to = target_root},
 
