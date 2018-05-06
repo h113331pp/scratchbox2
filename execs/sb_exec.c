@@ -152,6 +152,7 @@ struct target_info {
 };
 
 static const struct target_info target_table[] = {
+	{ "arm64",	EM_AARCH64,	ELFDATA2LSB,	0 },
 	{ "arm",	EM_ARM,		ELFDATA2LSB,	1 },
 	{ "mips",	EM_MIPS,	ELFDATA2MSB,	1 },
 	{ "ppc",	EM_PPC,		ELFDATA2MSB,	0 },
