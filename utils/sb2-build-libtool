@@ -43,8 +43,12 @@ fi
 
 tar zxf $LOCAL_SOURCEFILE --strip-components=1
 
-
-./configure --prefix=$HOME/.scratchbox2/$TARGET --build=$(uname -m)-unknown-linux-gnu
+machine_name=$(uname -m)
+if [ "$machine_name" = "arm64" ]; then
+	echo "uname -m 'arm64' detected, change it to 'aarch64'"
+	machine_name="aarch64"
+fi
+./configure --prefix=$HOME/.scratchbox2/$TARGET --build=$(machine_name)-unknown-linux-gnu
 
 # The system libtool script in Debian must be able to support
 # invoking gcc as cc (Debian specific)
