@@ -112,9 +112,7 @@ regular: .configure .version
 	@$(MAKE) -f $(SRCDIR)/Makefile --include-dir=$(SRCDIR) SRCDIR=$(SRCDIR) do-all
 
 multilib:
-	@mkdir -p obj-32
 	@mkdir -p obj-64
-	@$(MAKE) MACH_CFLAG=-m32 -C obj-32 --include-dir=.. -f ../Makefile SRCDIR=.. regular
 	@$(MAKE) MACH_CFLAG=-m64 -C obj-64 --include-dir=.. -f ../Makefile SRCDIR=.. regular
 
 
@@ -245,7 +243,6 @@ endif
 multilib_prefix=$(prefix)
 
 install-multilib: multilib
-	@$(MAKE) -C obj-32 --include-dir=.. -f ../Makefile SRCDIR=.. do-install-multilib bitness=32
 	@$(MAKE) -C obj-64 --include-dir=.. -f ../Makefile SRCDIR=.. do-install
 
 do-install-multilib:
