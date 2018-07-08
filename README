@@ -1,19 +1,7 @@
-
-DISCLAIMER:
-
-THIS IS A DEVELOPMENT VERSION OF NEXT GENERATION OF SCRATCHBOX 2,
-called "2.3-series" during the development.
-So, this version should be regarded as an early prototype;
-if you need a stable version, please use the latest one
-from the 2.2-series (currently 2.2.2).
-
-Original "README" follows:
----------------------------------------
 SCRATCHBOX 2 README
 
-author: Lauri Leukkunen <lle@rahina.org>
-date:   2008-10-20
-(minor updates by Lauri T. Aarnio, 2011-03-29)
+author: Wally Yeh <wally.yeh@a-trust.com.tw>
+date:   2018-07-08
 
 
 
@@ -33,19 +21,12 @@ mailing list (scratchbox-devel@lists.scratchbox.org)
 
 INSTALLATION
 
-You need git to work with sbox2, get it from http://git.or.cz/.
+You need git to work with sbox2, get it from hhttps://github.com/h113331pp/scratchbox2.
 
 Clone the scratchbox 2 repository:
-$ git clone git://gitorious.org/scratchbox2/scratchbox2.git
-or if behind a corporate firewall, use http:
-$ git clone http://git.gitorious.org/scratchbox2/scratchbox2.git
-
-(the old git repository at freedesktop.org is not used anymore)
-
-For x86_64 hosts Scratchbox 2 automatically builds both i386
-and x86_64 versions of libsb2.so, for this reason you need
-to have the necessary 32bit support libs available (libc6-dev-i386,
-lib32gcc1 & co. on debian).
+$ git clone git@github.com:h113331pp/scratchbox2.git
+or if behind a corporate firewall, use https:
+$ git clone https://github.com/h113331pp/scratchbox2.git
 
 There are two ways to build and install SB2:
 
